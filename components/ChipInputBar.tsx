@@ -808,7 +808,8 @@ export default function ChipInputBar({ onStateChange, onSend, placeholder, class
   }
 
   function handleSend() {
-    if (!draft.trim()) return;
+    const hasChipContext = !!(state.destination || state.dates.start || state.quickPick || travelersSet || state.budgetPreset);
+    if (!draft.trim() && !hasChipContext) return;
     onSend?.(draft.trim(), state);
     setDraft("");
   }
@@ -948,13 +949,13 @@ export default function ChipInputBar({ onStateChange, onSend, placeholder, class
           />
           <motion.button
             onClick={handleSend}
-            disabled={!draft.trim()}
-            whileHover={draft.trim() ? { scale: 1.08 } : {}}
-            whileTap={draft.trim() ? { scale: 0.92 } : {}}
+            disabled={!draft.trim() && !(state.destination || state.dates.start || state.quickPick || travelersSet || state.budgetPreset)}
+            whileHover={(draft.trim() || state.destination || state.dates.start || state.quickPick || travelersSet || state.budgetPreset) ? { scale: 1.08 } : {}}
+            whileTap={(draft.trim() || state.destination || state.dates.start || state.quickPick || travelersSet || state.budgetPreset) ? { scale: 0.92 } : {}}
             transition={spring}
             className={cn(
               "w-8 h-8 rounded-full flex items-center justify-center shrink-0 transition-colors",
-              draft.trim() ? "bg-[#FF4F17] hover:bg-[#e03d08]" : "bg-[#f0f0f0] cursor-not-allowed",
+              (draft.trim() || state.destination || state.dates.start || state.quickPick || travelersSet || state.budgetPreset) ? "bg-[#FF4F17] hover:bg-[#e03d08]" : "bg-[#f0f0f0] cursor-not-allowed",
             )}
           >
             <svg width="13" height="13" viewBox="0 0 24 24" fill="none"
