@@ -4,6 +4,7 @@ import { useState, useRef, useEffect } from "react";
 import Image from "next/image";
 import { cn } from "@/lib/utils";
 import { AppSidebar } from "@/components/AppSidebar";
+import ChipInputBar from "@/components/ChipInputBar";
 import {
   AirplaneTilt,
   Buildings,
@@ -12,7 +13,6 @@ import {
   Globe,
   PaperPlaneTilt,
   ArrowsClockwise,
-  Waveform,
   ChatCircle,
   X,
   MapPin,
@@ -610,7 +610,6 @@ function ChatArea({
   onSkip: () => void;
   endRef: React.RefObject<HTMLDivElement | null>;
 }) {
-  const [draft, setDraft] = useState("");
   const [promptSet, setPromptSet] = useState(0);
   const showCard = stage === "q1" || stage === "q2" || stage === "q3" || stage === "q4";
   const cards = PROMPT_CARD_SETS[promptSet];
@@ -618,7 +617,6 @@ function ChatArea({
   function sendFree(txt: string) {
     if (!txt.trim()) return;
     onStart(txt.trim());
-    setDraft("");
   }
 
   return (
@@ -738,44 +736,16 @@ function ChatArea({
 
       {/* Bottom input area */}
       <div className="shrink-0 px-6 pb-5 max-w-[700px] mx-auto w-full">
-        {stage === "idle" && (
-          <div className="flex items-center gap-2 mb-2.5">
-            {["+Where", "+When", "+Travelers", "+Budget"].map(chip => (
-              <button key={chip} className="text-[12px] font-semibold text-[#555] border border-[#e5e7eb] px-3 py-1.5 rounded-full hover:bg-[#f5f5f5] hover:border-[#ccc] transition-colors bg-white">
-                {chip}
-              </button>
-            ))}
-          </div>
-        )}
-
         {showCard && (
           <QuestionCard q={QS[qIdx]} qIdx={qIdx} selected={selected}
             onPick={onPick} onSubmit={onAnswer} onSkip={onSkip} />
         )}
 
         {(stage === "idle" || stage === "results") && (
-          <div className="flex items-center gap-3 bg-white border border-[#e5e7eb] rounded-2xl px-4 py-3 shadow-sm">
-            <button className="w-7 h-7 rounded-full bg-[#1a1a1a] flex items-center justify-center shrink-0 hover:bg-[#333] transition-colors">
-              <Plus size={14} color="white" weight="bold" />
-            </button>
-            <input
-              value={draft}
-              onChange={e => setDraft(e.target.value)}
-              onKeyDown={e => { if (e.key === "Enter") sendFree(draft); }}
-              placeholder={stage === "results" ? "Ask to change anything — 'swap the hotel', 'add a rest day'…" : "Ask anything…"}
-              className="flex-1 bg-transparent text-[14px] text-[#1a1a1a] placeholder:text-[#ccc] outline-none"
-            />
-            <Waveform size={18} className="text-[#ccc] hover:text-[#888] cursor-pointer shrink-0 transition-colors" />
-            <button
-              onClick={() => sendFree(draft)}
-              className={cn(
-                "w-8 h-8 rounded-full flex items-center justify-center shrink-0 transition-colors",
-                draft.trim() ? "bg-[#1a1a1a] hover:bg-[#333]" : "bg-[#f0f0f0] cursor-not-allowed",
-              )}
-            >
-              <PaperPlaneTilt size={14} color={draft.trim() ? "white" : "#ccc"} weight="fill" />
-            </button>
-          </div>
+          <ChipInputBar
+            placeholder={stage === "results" ? "Ask to change anything — 'swap the hotel', 'add a rest day'…" : "Where do you want to go? Describe your dream trip…"}
+            onSend={(txt) => sendFree(txt)}
+          />
         )}
       </div>
     </div>

@@ -3,6 +3,7 @@
 import { useState, useRef, useEffect } from "react";
 import { cn } from "@/lib/utils";
 import { SiteHeader } from "@/components/SiteHeader";
+import ChipInputBar from "@/components/ChipInputBar";
 
 /* ── Types ─────────────────────────────────────────────── */
 type Stage = "idle" | "q1" | "q2" | "q3" | "q4" | "planning" | "results";
@@ -721,10 +722,21 @@ export default function AIPlanner() {
                 onPick={handlePick} onSubmit={handleAnswer} onSkip={() => handleAnswer("Skipped")} />
             )}
             {stage === "results" && (
-              <FreeInput onSend={txt => {
-                addMsg({ kind: "user-init", text: txt });
-                showAI("Got it! I've noted that — updating your plan on the right…");
-              }} placeholder="Ask to change anything — 'swap the hotel', 'add a rest day'…" />
+              <ChipInputBar
+                placeholder="Ask to change anything — 'swap the hotel', 'add a rest day'…"
+                onSend={(txt, tripState) => {
+                  const ctx = [
+                    tripState.destination && `Destination: ${tripState.destination}`,
+                    (tripState.dates.start || tripState.quickPick) && `Dates: ${tripState.quickPick || `${tripState.dates.start} → ${tripState.dates.end}`}`,
+                    `Travelers: ${tripState.adults + tripState.children} (${tripState.cabinClass})`,
+                    tripState.budgetPreset && `Budget: ${tripState.budgetPreset}`,
+                  ].filter(Boolean).join(" · ");
+                  const full = ctx ? `${txt}\n[${ctx}]` : txt;
+                  addMsg({ kind: "user-init", text: txt });
+                  showAI("Got it! I've noted that — updating your plan on the right…");
+                  void full;
+                }}
+              />
             )}
           </div>
         </div>
