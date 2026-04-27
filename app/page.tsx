@@ -1,930 +1,893 @@
 "use client";
 
-import { useState, type ReactNode } from "react";
+import { useState, useRef, useEffect } from "react";
 import Image from "next/image";
+import { cn } from "@/lib/utils";
+import { AppSidebar } from "@/components/AppSidebar";
+import {
+  AirplaneTilt,
+  Buildings,
+  MagnifyingGlass,
+  Plus,
+  Globe,
+  PaperPlaneTilt,
+  ArrowsClockwise,
+  Waveform,
+  ChatCircle,
+  X,
+  MapPin,
+  Umbrella,
+  Train,
+  Compass,
+  ForkKnife,
+  Backpack,
+  Camera,
+  SunHorizon,
+} from "@phosphor-icons/react";
 
-/* ─── Tiny icon helpers ──────────────────────────────────── */
-const Ic = {
-  Tag: () => (
-    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/><line x1="7" y1="7" x2="7.01" y2="7"/>
-    </svg>
-  ),
-  Briefcase: () => (
-    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-      <rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/>
-    </svg>
-  ),
-  MapPin: () => (
-    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/>
-    </svg>
-  ),
-  Headphones: () => (
-    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M3 18v-6a9 9 0 0 1 18 0v6"/><path d="M21 19a2 2 0 0 1-2 2h-1a2 2 0 0 1-2-2v-3a2 2 0 0 1 2-2h3zM3 19a2 2 0 0 0 2 2h1a2 2 0 0 0 2-2v-3a2 2 0 0 0-2-2H3z"/>
-    </svg>
-  ),
-  User: () => (
-    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/>
-    </svg>
-  ),
-  ChevDown: () => (
-    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-      <polyline points="6 9 12 15 18 9"/>
-    </svg>
-  ),
-  ChevRight: () => (
-    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-      <polyline points="9 18 15 12 9 6"/>
-    </svg>
-  ),
-  ChevLeft: () => (
-    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-      <polyline points="15 18 9 12 15 6"/>
-    </svg>
-  ),
-  Plane: () => (
-    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M17.8 19.2 16 11l3.5-3.5C21 6 21 4 19 4c-1 0-2 .5-2.5 1.5L13 9 4.8 6.2C3.5 5.7 2 6.3 2 7.6c0 .6.3 1.2.8 1.5l5.4 3.4-2.5 3.5c-.5.5-.7 1.2-.5 1.9.3.9 1.2 1.5 2.1 1.3l3.4-.8L12 20l4.2.8c.3.1.5.1.8 0 .7-.3 1.1-1.1.8-1.6z"/>
-    </svg>
-  ),
-  Calendar: () => (
-    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-      <rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/>
-    </svg>
-  ),
-  Swap: () => (
-    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M7 16V4m0 0L3 8m4-4 4 4M17 8v12m0 0 4-4m-4 4-4-4"/>
-    </svg>
-  ),
-  Check: () => (
-    <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
-      <polyline points="20 6 9 17 4 12"/>
-    </svg>
-  ),
-};
+/* ── Types ─────────────────────────────────────────────── */
+type Stage = "idle" | "q1" | "q2" | "q3" | "q4" | "planning" | "results";
+interface QOption { label: string; arrow?: boolean }
+interface QDef { id: string; question: string; options: QOption[]; multi?: boolean; placeholder: string; pageOf: number }
+interface SummaryPair { q: string; a: string }
+interface Msg { id: string; kind: "user-init" | "ai" | "summary" | "planning-done"; text?: string; pairs?: SummaryPair[] }
 
-/* ─── Nav tab icons (colored circle illustrations) ───────── */
-const TabIcon = ({ tab }: { tab: string }) => {
-  const configs: Record<string, { bg: string; icon: ReactNode }> = {
-    flights: {
-      bg: "from-[#4a90d9] to-[#1a5fb4]",
-      icon: (
-        <svg width="22" height="22" viewBox="0 0 24 24" fill="white">
-          <path d="M21 16v-2l-8-5V3.5c0-.83-.67-1.5-1.5-1.5S10 2.67 10 3.5V9l-8 5v2l8-2.5V19l-2 1.5V22l3.5-1 3.5 1v-1.5L13 19v-5.5l8 2.5z"/>
-        </svg>
-      ),
-    },
-    hotels: {
-      bg: "from-[#52b85a] to-[#2d8c35]",
-      icon: (
-        <svg width="22" height="22" viewBox="0 0 24 24" fill="white">
-          <path d="M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z"/>
-        </svg>
-      ),
-    },
-    buses: {
-      bg: "from-[#f5a623] to-[#d4820a]",
-      icon: (
-        <svg width="22" height="22" viewBox="0 0 24 24" fill="white">
-          <path d="M4 16c0 .88.39 1.67 1 2.22V20c0 .55.45 1 1 1h1c.55 0 1-.45 1-1v-1h8v1c0 .55.45 1 1 1h1c.55 0 1-.45 1-1v-1.78c.61-.55 1-1.34 1-2.22V6c0-3.5-3.58-4-8-4s-8 .5-8 4v10zm3.5 1c-.83 0-1.5-.67-1.5-1.5S6.67 14 7.5 14s1.5.67 1.5 1.5S8.33 17 7.5 17zm9 0c-.83 0-1.5-.67-1.5-1.5s.67-1.5 1.5-1.5 1.5.67 1.5 1.5-.67 1.5-1.5 1.5zm1.5-6H6V6h12v5z"/>
-        </svg>
-      ),
-    },
-    holidays: {
-      bg: "from-[#a855f7] to-[#7c3aed]",
-      icon: (
-        <svg width="22" height="22" viewBox="0 0 24 24" fill="white">
-          <path d="M13.5 5.5c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zM9.8 8.9L7 23h2.1l1.8-8 2.1 2v6h2v-7.5l-2.1-2 .6-3C14.8 12 16.8 13 19 13v-2c-1.9 0-3.5-1-4.3-2.4l-1-1.6c-.4-.6-1-1-1.7-1-.3 0-.5.1-.8.1L6 8.3V13h2V9.6l1.8-.7"/>
-        </svg>
-      ),
-    },
-  };
-  const c = configs[tab] || configs.flights;
-  return (
-    <div className={`w-10 h-10 rounded-full bg-linear-to-br ${c.bg} flex items-center justify-center shadow-sm`}>
-      {c.icon}
-    </div>
-  );
-};
-
-/* ─── Header ─────────────────────────────────────────────── */
-const NAV_TABS = [
-  { id: "flights", label: "Flights" },
-  { id: "hotels", label: "Hotels" },
-  { id: "buses", label: "Buses" },
-  { id: "holidays", label: "Holidays" },
+/* ── Questions ──────────────────────────────────────────── */
+const QS: QDef[] = [
+  { id: "dest", pageOf: 4, question: "Where are you headed?",
+    options: [{ label: "I have a destination in mind", arrow: true }, { label: "Help me pick somewhere" }],
+    placeholder: "Type a city or country…" },
+  { id: "who", pageOf: 4, question: "Who's coming along?",
+    options: [{ label: "Just me" }, { label: "2 adults" }, { label: "Family with kids" }, { label: "Group of friends" }],
+    placeholder: "Something else…" },
+  { id: "vibe", pageOf: 4, question: "What's your trip vibe?",
+    options: [{ label: "🏖️ Beach & water sports" }, { label: "🏛️ Culture & heritage" }, { label: "🎉 Party & nightlife" }, { label: "🧘 Relaxation" }],
+    multi: true, placeholder: "Something else…" },
+  { id: "budget", pageOf: 4, question: "What's your total trip budget?",
+    options: [{ label: "Under ₹40,000" }, { label: "₹40,000 – ₹80,000" }, { label: "₹80,000 – ₹1,50,000" }, { label: "No strict limit" }],
+    placeholder: "Enter an amount…" },
 ];
 
-function Header({ active }: { active: string }) {
-  return (
-    <header className="bg-white sticky top-0 z-50">
-      {/* ── Top utility bar ── */}
-      <div className="border-b border-[#ebebeb]">
-        <div className="max-w-[1260px] mx-auto px-5 h-[48px] flex items-center justify-between">
-          {/* Logo */}
-          <div className="flex items-center gap-2">
-            {/* Checkmark icon */}
-            <div className="w-6 h-6 rounded-[5px] bg-[#FF4F17] flex items-center justify-center shrink-0">
-              <Ic.Check />
-            </div>
-            <span
-              className="font-extrabold text-[20px] tracking-tight text-[#FF4F17]"
-              style={{ fontFamily: "'Inter', sans-serif" }}
-            >
-              cleartrip
-            </span>
-            <span className="text-[11px] text-[#999] italic font-normal pl-2 border-l border-[#e5e7eb]">
-              A <span className="font-semibold not-italic">Flipkart</span> Company
-            </span>
-          </div>
+const AI_ACKS = [
+  "Let's plan your perfect Goa getaway! A few quick questions to get started:",
+  "Goa in May — great timing before the rains! Who's coming along?",
+  "Nice! What kind of experience are you looking for?",
+  "Love that mix! Last one:",
+];
 
-          {/* Utility links */}
-          <div className="flex items-center gap-0">
-            <button className="flex items-center gap-1.5 px-3.5 h-[48px] text-[13px] text-[#333] hover:text-[#FF4F17] font-medium transition-colors">
-              <span className="text-[#666]"><Ic.Tag /></span>
-              Offers
-            </button>
-            <button className="flex items-center gap-1.5 px-3.5 h-[48px] text-[13px] text-[#333] hover:text-[#FF4F17] font-medium transition-colors">
-              <span className="text-[#666]"><Ic.Briefcase /></span>
-              Business
-              <span className="text-[#999]"><Ic.ChevDown /></span>
-            </button>
-            <button className="flex items-center gap-1.5 px-3.5 h-[48px] text-[13px] text-[#333] hover:text-[#FF4F17] font-medium transition-colors">
-              <span className="text-[#666]"><Ic.MapPin /></span>
-              My Trips
-            </button>
-            <button className="flex items-center gap-1.5 px-3.5 h-[48px] text-[13px] text-[#333] hover:text-[#FF4F17] font-medium transition-colors">
-              <span className="text-[#666]"><Ic.Headphones /></span>
-              Support
-            </button>
-            <div className="w-px h-5 bg-[#e0e0e0] mx-1" />
-            <button className="flex items-center gap-1.5 px-3.5 h-[48px] text-[13px] text-[#333] hover:text-[#FF4F17] font-medium transition-colors">
-              <span className="text-[#666]"><Ic.User /></span>
-              My Account
-              <span className="text-[#999]"><Ic.ChevDown /></span>
-            </button>
-          </div>
-        </div>
-      </div>
+const STEPS = [
+  { icon: "✈️", text: "Searching 847 flights DEL → GOI · May 15", result: "IndiGo 6E-2241 · ₹4,899/person · Non-stop" },
+  { icon: "🏨", text: "Checking 340+ hotels in North Goa · 4 nights", result: "Taj Fort Aguada · 5★ · ₹8,500/night" },
+  { icon: "🎯", text: "Curating activities: beach + culture vibes", result: "14 hand-picked experiences across 5 days" },
+  { icon: "✈️", text: "Searching return flights GOI → DEL · May 19", result: "IndiGo 6E-2244 · ₹5,299/person · Non-stop" },
+  { icon: "✅", text: "Assembling itinerary & running budget check", result: "₹62,896 total · ₹17,104 under budget ✓" },
+];
 
-      {/* ── Nav tabs bar ── */}
-      <div className="bg-white border-b border-[#ebebeb]">
-        <div className="max-w-[1260px] mx-auto px-5 flex items-center justify-center gap-1 py-0">
-          {NAV_TABS.map((tab) => {
-            const isActive = tab.id === active;
-            return (
-              <button
-                key={tab.id}
-                className={[
-                  "flex items-center gap-2.5 px-8 py-3.5 text-[15px] font-medium border-b-2 transition-all",
-                  isActive
-                    ? "border-[#FF4F17] text-[#1a1a1a] font-semibold"
-                    : "border-transparent text-[#555] hover:text-[#1a1a1a] hover:border-[#ddd]",
-                ].join(" ")}
-              >
-                <TabIcon tab={tab.id} />
-                {tab.label}
-              </button>
-            );
-          })}
-        </div>
-      </div>
-    </header>
-  );
-}
+/* ── Static data ────────────────────────────────────────── */
+const PROMPT_CARD_SETS = [
+  [
+    { Icon: Globe, title: "Discover places to visit", sub: "What's the best island in Hawaii for a family vacation? Include a comparison of all the islands." },
+    { Icon: Buildings, title: "Hotel suggestions", sub: "Show me the best five-star hotels in Taormina for March, with amenities, ratings and price range." },
+    { Icon: AirplaneTilt, title: "Find flights", sub: "Find flights from SFO to Patagonia via Buenos Aires, leaving Mar 30th for 10 days." },
+  ],
+  [
+    { Icon: ForkKnife, title: "Food & dining", sub: "What are the best local restaurants and street food spots to try in Tokyo for a first-time visitor?" },
+    { Icon: Train, title: "Rail journeys", sub: "Plan a scenic train trip across Europe starting in Lisbon and ending in Budapest over 2 weeks." },
+    { Icon: Umbrella, title: "Beach escapes", sub: "Suggest the best beaches in Southeast Asia for a couple looking for quiet, non-touristy spots." },
+  ],
+  [
+    { Icon: Backpack, title: "Budget travel", sub: "How do I backpack across South America for 30 days on a ₹1,50,000 budget?" },
+    { Icon: Camera, title: "Photography trips", sub: "Which destinations in Iceland are best for landscape and aurora photography in winter?" },
+    { Icon: Compass, title: "Off the beaten path", sub: "Suggest some lesser-known destinations in India that are worth visiting but rarely covered in travel guides." },
+  ],
+  [
+    { Icon: SunHorizon, title: "Weekend getaways", sub: "What are the best weekend trips from Mumbai that I can do in 2 days without flying?" },
+    { Icon: MapPin, title: "City guides", sub: "Give me a 3-day itinerary for Barcelona including art, food and the best neighbourhoods to walk through." },
+    { Icon: Globe, title: "Visa & travel tips", sub: "What visa do I need as an Indian passport holder to visit Europe, and what's the easiest way to apply?" },
+  ],
+];
 
-/* ─── Flight Search Card ─────────────────────────────────── */
-function FlightSearch() {
-  const [tripType, setTripType] = useState<"oneway" | "roundtrip">("oneway");
-  const [from, setFrom] = useState("");
-  const [to, setTo] = useState("");
-  const [nonstop, setNonstop] = useState(false);
-  const [bizFare, setBizFare] = useState(true);
+const TRENDING = [
+  { city: "Bali, Indonesia", img: "https://picsum.photos/seed/bali-rice/400/260" },
+  { city: "Santorini, Greece", img: "https://picsum.photos/seed/santorini-gr/400/260" },
+  { city: "Kyoto, Japan", img: "https://picsum.photos/seed/kyoto-japan/400/260" },
+  { city: "Patagonia, Argentina", img: "https://picsum.photos/seed/patagonia-ar/400/260" },
+];
 
-  const swap = () => { const t = from; setFrom(to); setTo(t); };
-
-  /* Format "Tue, Apr 28" */
-  const departLabel = new Date("2026-04-28").toLocaleDateString("en-US", {
-    weekday: "short", month: "short", day: "numeric",
-  });
-
-  return (
-    <div className="bg-white rounded-[12px] shadow-[0_2px_16px_rgba(0,0,0,0.10)] overflow-hidden">
-
-      {/* ── Row 1: trip type + passengers ── */}
-      <div className="flex items-center justify-between px-5 pt-5 pb-4">
-        <div className="flex items-center gap-6">
-          {[
-            { val: "oneway", label: "One way" },
-            { val: "roundtrip", label: "Round trip" },
-          ].map((t) => (
-            <label
-              key={t.val}
-              className="flex items-center gap-2 cursor-pointer select-none"
-              onClick={() => setTripType(t.val as "oneway" | "roundtrip")}
-            >
-              <div
-                className={[
-                  "w-[18px] h-[18px] rounded-full border-2 flex items-center justify-center transition-all",
-                  tripType === t.val ? "border-[#FF4F17]" : "border-[#bbb]",
-                ].join(" ")}
-              >
-                {tripType === t.val && <div className="w-[10px] h-[10px] rounded-full bg-[#FF4F17]" />}
-              </div>
-              <span className="text-[15px] text-[#333] font-medium">{t.label}</span>
-            </label>
-          ))}
-        </div>
-
-        <button className="flex items-center gap-1.5 text-[14px] text-[#333] font-medium hover:text-[#FF4F17] transition-colors">
-          <Ic.User />
-          1 Adult, Economy
-          <Ic.ChevDown />
-        </button>
-      </div>
-
-      {/* ── Row 2: From / Swap / To ── */}
-      <div className="flex items-stretch border-t border-[#eef1f6] mx-0">
-        {/* From */}
-        <div className="flex-1 min-w-0 flex items-center gap-3 px-5 py-4 hover:bg-[#fafbfd] cursor-pointer transition-colors">
-          <span className="text-[#bcc5d3] shrink-0">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M5 17H3a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2h-3"/>
-              <polyline points="9 22 9 12 15 12 15 22"/>
-            </svg>
-          </span>
-          <input
-            value={from}
-            onChange={(e) => setFrom(e.target.value)}
-            placeholder="Where from?"
-            className="text-[18px] font-semibold text-[#1a1a1a] placeholder-[#bcc5d3] outline-none bg-transparent w-full"
-          />
-        </div>
-
-        {/* Swap */}
-        <div className="flex items-center shrink-0 border-l border-r border-[#eef1f6] px-2">
-          <button
-            onClick={swap}
-            className="w-9 h-9 rounded-full border border-[#dde4ee] bg-white flex items-center justify-center text-[#8896ab] hover:text-[#FF4F17] hover:border-[#FF4F17] transition-all shadow-sm"
-          >
-            <Ic.Swap />
-          </button>
-        </div>
-
-        {/* To */}
-        <div className="flex-1 min-w-0 flex items-center gap-3 px-5 py-4 hover:bg-[#fafbfd] cursor-pointer transition-colors">
-          <span className="text-[#bcc5d3] shrink-0">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M21 16v-2l-8-5V3.5c0-.83-.67-1.5-1.5-1.5S10 2.67 10 3.5V9l-8 5v2l8-2.5V19l-2 1.5V22l3.5-1 3.5 1v-1.5L13 19v-5.5l8 2.5z"/>
-            </svg>
-          </span>
-          <input
-            value={to}
-            onChange={(e) => setTo(e.target.value)}
-            placeholder="Where to?"
-            className="text-[18px] font-semibold text-[#1a1a1a] placeholder-[#bcc5d3] outline-none bg-transparent w-full"
-          />
-        </div>
-      </div>
-
-      {/* ── Row 3: Departure / Return ── */}
-      <div className="flex border-t border-[#eef1f6]">
-        {/* Departure */}
-        <div className="flex-1 flex items-center gap-3 px-5 py-4 hover:bg-[#fafbfd] cursor-pointer transition-colors border-r border-[#eef1f6]">
-          <span className="text-[#bcc5d3] shrink-0"><Ic.Calendar /></span>
-          <div>
-            <span className="text-[18px] font-semibold text-[#1a1a1a]">{departLabel}</span>
-            <p className="text-[11px] text-[#999] mt-0.5">Departure</p>
-          </div>
-        </div>
-        {/* Return */}
-        <div
-          className={[
-            "flex-1 flex items-center gap-3 px-5 py-4 transition-colors",
-            tripType === "roundtrip" ? "hover:bg-[#fafbfd] cursor-pointer" : "cursor-default",
-          ].join(" ")}
-        >
-          <span className="text-[#bcc5d3] shrink-0"><Ic.Calendar /></span>
-          <div>
-            <span className={`text-[18px] font-semibold ${tripType === "roundtrip" ? "text-[#1a1a1a]" : "text-[#bcc5d3]"}`}>
-              Return
-            </span>
-            {tripType === "roundtrip"
-              ? <p className="text-[11px] text-[#999] mt-0.5">Return date</p>
-              : <p className="text-[11px] text-[#bcc5d3] mt-0.5">Tap to add a return date</p>
-            }
-          </div>
-        </div>
-      </div>
-
-      {/* ── Row 4: Fare type grid ── */}
-      <div className="flex border-t border-[#eef1f6]">
-        {/* Business Fares */}
-        <button
-          onClick={() => setBizFare(!bizFare)}
-          className="flex-1 flex items-start gap-2.5 px-4 py-3 hover:bg-[#fafbfd] transition-colors text-left border-r border-[#eef1f6]"
-        >
-          {/* Blue checkbox */}
-          <div
-            className={[
-              "w-4 h-4 rounded border-2 flex items-center justify-center mt-0.5 shrink-0 transition-colors",
-              bizFare ? "bg-[#1a6af4] border-[#1a6af4]" : "border-[#bbb]",
-            ].join(" ")}
-          >
-            {bizFare && (
-              <svg width="9" height="9" viewBox="0 0 12 12" fill="none">
-                <path d="M2 6l3 3 5-5" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-              </svg>
-            )}
-          </div>
-          <div className="min-w-0">
-            <p className="text-[13px] font-semibold text-[#1a1a1a] leading-tight">
-              Business Fares by Cleartrip
-            </p>
-            <p className="text-[11px] text-[#888] mt-0.5">Unlock 10% extra savings</p>
-          </div>
-          <span className="shrink-0 bg-[#FF4F17] text-white text-[8px] font-extrabold px-1.5 py-0.5 rounded uppercase tracking-wide mt-0.5">
-            SAVE MORE
-          </span>
-        </button>
-
-        {/* Other fare types */}
-        {[
-          { label: "Student", sub: "Extra baggage, discounts" },
-          { label: "Senior citizen", sub: "Up to ₹600 off" },
-          { label: "Armed forces", sub: "Up to ₹600 off" },
-        ].map((ft, i, arr) => (
-          <button
-            key={ft.label}
-            className={[
-              "flex-1 flex flex-col items-start px-4 py-3 hover:bg-[#fafbfd] transition-colors text-left",
-              i < arr.length - 1 ? "border-r border-[#eef1f6]" : "",
-            ].join(" ")}
-          >
-            <p className="text-[13px] font-semibold text-[#1a1a1a] leading-tight">{ft.label}</p>
-            <p className="text-[11px] text-[#888] mt-0.5">{ft.sub}</p>
-          </button>
-        ))}
-      </div>
-
-      {/* ── Row 5: Non-stop + Search ── */}
-      <div className="flex items-center justify-between px-5 py-4 border-t border-[#eef1f6]">
-        <button
-          onClick={() => setNonstop(!nonstop)}
-          className="flex items-center gap-2.5 select-none"
-        >
-          {/* iOS toggle */}
-          <div
-            className={[
-              "relative w-[42px] h-[24px] rounded-full transition-colors duration-200",
-              nonstop ? "bg-[#FF4F17]" : "bg-[#d0d8e4]",
-            ].join(" ")}
-          >
-            <div
-              className={[
-                "absolute top-[3px] w-[18px] h-[18px] rounded-full bg-white shadow-sm transition-transform duration-200",
-                nonstop ? "translate-x-[21px]" : "translate-x-[3px]",
-              ].join(" ")}
-            />
-          </div>
-          <span className="text-[14px] text-[#444] font-medium">Non-stop flights only</span>
-        </button>
-
-        <button className="bg-[#FF4F17] hover:bg-[#e03d08] active:scale-[0.98] text-white font-bold text-[16px] px-14 py-3 rounded-[8px] transition-all shadow-sm">
-          Search flights
-        </button>
-      </div>
-    </div>
-  );
-}
-
-/* ─── Side Panel ─────────────────────────────────────────── */
-function SidePanel() {
-  const [slide, setSlide] = useState(0);
-  const slides = [
-    {
-      img: "https://picsum.photos/seed/india-flights-warm/560/320",
-      eyebrow: "DOMFLASH",
-      badge: "Tatakal Sale",
-      tagline: "Daily 12 – 2 PM",
-      headline: "Domestic Flights",
-      price: "Starting ₹999",
-      sponsor: "SBI",
-      sponsorFull: "SBI Card",
-      sponsorBg: "#003399",
-    },
-    {
-      img: "https://picsum.photos/seed/international-sky/560/320",
-      eyebrow: "INTFLASH",
-      badge: "Weekend Offer",
-      tagline: "Sat & Sun only",
-      headline: "International Flights",
-      price: "From ₹2,499",
-      sponsor: "HDFC",
-      sponsorFull: "HDFC Bank Card",
-      sponsorBg: "#004c97",
-    },
-  ];
-  const s = slides[slide];
-
-  return (
-    <div className="w-[248px] shrink-0 flex flex-col gap-3">
-      {/* ── Main promo card ── */}
-      <div className="bg-white rounded-[12px] border border-[#e2e8f4] shadow-[0_4px_16px_rgba(0,0,0,0.10)] overflow-hidden">
-        {/* Photo */}
-        <div className="relative h-[120px]">
-          <Image src={s.img} alt={s.headline} fill className="object-cover" sizes="248px" />
-          <div className="absolute inset-0 bg-linear-to-t from-black/70 via-black/20 to-transparent" />
-          <div className="absolute top-2.5 left-2.5 flex items-center gap-1.5">
-            <span className="text-[8.5px] font-extrabold text-white bg-[#0a1f6e] px-2 py-[3px] rounded uppercase tracking-widest">
-              {s.eyebrow}
-            </span>
-            <span className="text-[8.5px] font-extrabold text-[#1a1a1a] bg-[#FFD600] px-2 py-[3px] rounded uppercase tracking-widest">
-              {s.badge}
-            </span>
-          </div>
-        </div>
-
-        {/* Content area */}
-        <div className="px-3 pt-2.5 pb-2">
-          <div className="flex items-center gap-1 mb-1.5">
-            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="#FF4F17" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-              <circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>
-            </svg>
-            <span className="text-[10px] font-semibold text-[#FF4F17]">{s.tagline}</span>
-          </div>
-          <p className="text-[13px] font-semibold text-[#444] leading-tight">{s.headline}</p>
-          <p className="text-[22px] font-extrabold text-[#1a1a1a] leading-tight mt-0.5">{s.price}</p>
-        </div>
-
-        {/* Sponsor bar */}
-        <div className="px-3 pb-2.5 flex items-center gap-2 border-t border-[#f0f4f8] pt-2">
-          <div
-            className="h-5 px-2 rounded flex items-center justify-center text-white text-[9px] font-extrabold shrink-0 tracking-wider"
-            style={{ backgroundColor: s.sponsorBg }}
-          >
-            {s.sponsor}
-          </div>
-          <p className="text-[10px] text-[#666]">Valid on {s.sponsorFull} &amp; EMI Trans.</p>
-        </div>
-
-        {/* Dots */}
-        <div className="flex items-center justify-center gap-1.5 pb-2.5">
-          {slides.map((_, i) => (
-            <button
-              key={i}
-              onClick={() => setSlide(i)}
-              className={["rounded-full transition-all duration-200", i === slide ? "w-4 h-1.5 bg-[#FF4F17]" : "w-1.5 h-1.5 bg-[#ddd]"].join(" ")}
-            />
-          ))}
-        </div>
-      </div>
-
-      {/* ── More offers card ── */}
-      <div className="bg-white rounded-[12px] border border-[#e2e8f4] shadow-[0_4px_16px_rgba(0,0,0,0.10)] overflow-hidden">
-        <div className="flex items-center justify-between px-3.5 pt-3 pb-2">
-          <span className="text-[13px] font-bold text-[#1a1a1a]">More offers</span>
-          <button className="text-[11px] text-[#1a6af4] font-semibold hover:underline">View all</button>
-        </div>
-        <div className="border-t border-[#f4f6fb] px-3.5 py-3">
-          <div className="flex items-start gap-2 mb-2">
-            <div className="w-9 h-9 rounded-[8px] bg-[#e8f0fe] flex items-center justify-center shrink-0">
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#1a6af4" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M17.8 19.2 16 11l3.5-3.5C21 6 21 4 19 4c-1 0-2 .5-2.5 1.5L13 9 4.8 6.2C3.5 5.7 2 6.3 2 7.6c0 .6.3 1.2.8 1.5l5.4 3.4-2.5 3.5c-.5.5-.7 1.2-.5 1.9.3.9 1.2 1.5 2.1 1.3l3.4-.8L12 20l4.2.8c.3.1.5.1.8 0 .7-.3 1.1-1.1.8-1.6z"/>
-              </svg>
-            </div>
-            <div className="min-w-0">
-              <p className="text-[12px] font-bold text-[#1a1a1a] leading-tight">Live Flight Tracking!</p>
-              <p className="text-[10.5px] text-[#777] mt-0.5 leading-snug">Track your flight in real-time with Cleartrip.</p>
-            </div>
-          </div>
-          <button className="text-[11px] font-bold text-[#1a6af4] hover:underline">Know more →</button>
-        </div>
-        <div className="flex items-center justify-between px-3.5 pb-3 pt-1">
-          <button className="w-6 h-6 rounded-full border border-[#e0e6ef] flex items-center justify-center text-[#aab4c4] hover:border-[#1a6af4] hover:text-[#1a6af4] transition-all">
-            <Ic.ChevLeft />
-          </button>
-          <div className="flex items-center gap-1">
-            {[0, 1, 2, 3].map((i) => (
-              <div key={i} className={["rounded-full", i === 0 ? "w-3 h-1.5 bg-[#aab4c4]" : "w-1.5 h-1.5 bg-[#dde3ee]"].join(" ")} />
-            ))}
-          </div>
-          <button className="w-6 h-6 rounded-full border border-[#e0e6ef] flex items-center justify-center text-[#aab4c4] hover:border-[#1a6af4] hover:text-[#1a6af4] transition-all">
-            <Ic.ChevRight />
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-/* ─── Coupon Card System ─────────────────────────────────── */
-
-/** White pill ticket-stub chip */
-function CouponChip({ code }: { code: string }) {
-  return (
-    <div className="inline-flex items-center bg-white rounded-full border border-[#d0d6e0] shadow-[0_1px_4px_rgba(0,0,0,0.15)] px-2.5 py-[3px]">
-      <span className="text-[10px] font-semibold text-[#1a1a1a] tracking-wide leading-none" style={{ fontFamily: "'Inter', sans-serif" }}>
-        {code}
-      </span>
-    </div>
-  );
-}
-
-/** NATION VACATION SALE sticker badge */
-function NVSBadge() {
-  return (
-    <div className="flex flex-col items-center overflow-hidden rounded-[4px] shadow-sm shrink-0">
-      <div className="bg-[#d94b11] text-white text-[5.5px] font-extrabold uppercase tracking-wider px-1.5 py-[1.5px] w-full text-center leading-tight">NATION</div>
-      <div className="bg-[#FF4F17] text-white text-[5.5px] font-extrabold uppercase tracking-wider px-1.5 py-[1.5px] w-full text-center leading-tight">VACATION</div>
-      <div className="bg-[#FFD600] text-[#1a1a1a] text-[5.5px] font-extrabold uppercase tracking-wider px-1.5 py-[1.5px] w-full text-center leading-tight">SALE ✦</div>
-    </div>
-  );
-}
-
-/** Bank / partner logo pill */
-function BankPill({ name, bg, fg }: { name: string; bg: string; fg: string }) {
-  return (
-    <span className="text-[7.5px] font-bold px-1.5 py-[2px] rounded-[3px] uppercase tracking-wide leading-none" style={{ backgroundColor: bg, color: fg }}>
-      {name}
-    </span>
-  );
-}
-
-type CouponCardData = {
-  code: string;
-  img: string;
+type InspirationItem = {
+  type: "BLOG" | "VIDEO" | "ITINERARY";
+  source: string;
   title: string;
   sub: string;
-  nvs?: boolean;
-  flashSale?: boolean;
-  flashTime?: string;
-  banks?: { name: string; bg: string; fg: string }[];
+  img: string;
+  tags: string[];
+  href: string;
 };
 
-const couponCards: CouponCardData[] = [
+const INSPIRATION: InspirationItem[] = [
   {
-    code: "BRICK",
-    img: "https://picsum.photos/seed/city-india-warm/600/340",
-    title: "Up to 25% off",
-    sub: "on Domestic Flights",
-    banks: [
-      { name: "sbi card", bg: "#003399", fg: "#fff" },
-      { name: "Axis", bg: "#820000", fg: "#fff" },
-    ],
+    type: "BLOG",
+    source: "Lonely Planet",
+    title: "3 Perfect Days in Bali",
+    sub: "An itinerary for first-time visitors navigating temples, rice terraces and surf.",
+    img: "https://picsum.photos/seed/bali-temple/400/280",
+    tags: ["#bali", "#indonesia", "#firsttrip"],
+    href: "https://www.lonelyplanet.com/articles/best-things-to-do-in-bali",
   },
   {
-    code: "UPGRADE FOR LESS",
-    img: "https://picsum.photos/seed/flash-travel-sky/600/340",
-    title: "Up to 50% off",
-    sub: "on best airfares",
-    flashSale: true,
-    flashTime: "Daily 7 – 9 PM",
-    banks: [
-      { name: "Paytm", bg: "#00b9f1", fg: "#fff" },
-      { name: "Air India", bg: "#b22222", fg: "#fff" },
-    ],
+    type: "VIDEO",
+    source: "Mark Wiens · YouTube",
+    title: "Ultimate Bangkok Street Food Tour",
+    sub: "Eat your way through 12 legendary stalls in one day.",
+    img: "https://picsum.photos/seed/bangkok-food/400/280",
+    tags: ["#bangkok", "#foodie", "#streetfood"],
+    href: "https://www.youtube.com/watch?v=3S7bRzdxULg",
   },
   {
-    code: "CTMNV",
-    img: "https://picsum.photos/seed/travel-green-hills/600/340",
-    title: "Up to ₹5000 off",
-    sub: "on your next flight booking",
-    nvs: true,
+    type: "ITINERARY",
+    source: "TripAdvisor",
+    title: "10 Days Across the Amalfi Coast",
+    sub: "Cliff towns, hidden coves and the best limoncello stops on the drive.",
+    img: "https://picsum.photos/seed/amalfi-coast/400/280",
+    tags: ["#italy", "#amalfi", "#roadtrip"],
+    href: "https://www.tripadvisor.com/Tourism-g187779-Amalfi_Province_of_Salerno_Campania-Vacations.html",
   },
   {
-    code: "CTPAAEE | CTKSBC",
-    img: "https://picsum.photos/seed/airplane-blue-wide/600/340",
-    title: "Up to 7% off",
-    sub: "on unlimited bookings",
-    nvs: true,
-    banks: [
-      { name: "Axis Bank", bg: "#820000", fg: "#fff" },
-      { name: "PayPal", bg: "#003087", fg: "#fff" },
-    ],
+    type: "BLOG",
+    source: "Condé Nast Traveler",
+    title: "Europe's Most Scenic Train Journeys",
+    sub: "From the Glacier Express to the West Highland Line — windows worth booking a seat for.",
+    img: "https://picsum.photos/seed/europe-train/400/280",
+    tags: ["#europe", "#train", "#scenic"],
+    href: "https://www.cntraveler.com/gallery/most-scenic-train-rides-in-europe",
   },
   {
-    code: "CTMSPL",
-    img: "https://picsum.photos/seed/sky-blue-flight/600/340",
-    title: "Up to ₹10,000 off",
-    sub: "on Domestic Airline Flights",
-    banks: [
-      { name: "IndiGo", bg: "#1a2b8c", fg: "#fff" },
-    ],
+    type: "VIDEO",
+    source: "Lost LeBlancs · YouTube",
+    title: "Hidden Gems of Patagonia",
+    sub: "Torres del Paine trails and campsites that most tourists never find.",
+    img: "https://picsum.photos/seed/patagonia-ar/400/280",
+    tags: ["#patagonia", "#hiking", "#offbeat"],
+    href: "https://www.youtube.com/watch?v=Dm4MkTqn_9M",
   },
   {
-    code: "FAMILYTRIP",
-    img: "https://picsum.photos/seed/family-beach-fun/600/340",
-    title: "Flat 15% off",
-    sub: "for 2 or more travellers",
-    nvs: true,
-  },
-  {
-    code: "INTDOTD",
-    img: "https://picsum.photos/seed/japan-mountain-snow/600/340",
-    title: "Flat 15% off",
-    sub: "on Japan, China & Primepoints",
-  },
-  {
-    code: "CTAABHL",
-    img: "https://picsum.photos/seed/business-class-flight/600/340",
-    title: "Up to ₹10,000 off",
-    sub: "on Air India Business & Premium Economy Seat",
-    nvs: true,
+    type: "ITINERARY",
+    source: "Travel + Leisure",
+    title: "Best Ryokans in Japan",
+    sub: "Six traditional inns with kaiseki dinners, onsen baths and impeccable service.",
+    img: "https://picsum.photos/seed/japan-ryokan/400/280",
+    tags: ["#japan", "#ryokan", "#luxury"],
+    href: "https://www.travelandleisure.com/hotels/best-ryokans-japan",
   },
 ];
 
-function OfferCardGrid() {
-  const rows = [couponCards.slice(0, 4), couponCards.slice(4, 8)];
+const COMMUNITY = [
+  {
+    user: "Anika S.",
+    title: "A hidden beach in Nusa Penida worth visiting",
+    img: "https://picsum.photos/seed/nusa-penida/80/60",
+    tags: ["#bali", "#hidden"],
+  },
+  {
+    user: "Rahul K.",
+    title: "Best sunset spot in Uluwatu",
+    img: "https://picsum.photos/seed/uluwatu/80/60",
+    tags: ["#uluwatu", "#sunset"],
+  },
+  {
+    user: "Priya M.",
+    title: "Solo trip through Vietnam — 3 weeks, ₹60k",
+    img: "https://picsum.photos/seed/vietnam-solo/80/60",
+    tags: ["#vietnam", "#solotravel", "#budget"],
+  },
+];
+
+/* ── Planning animation ─────────────────────────────────── */
+function PlanningMsg({ step }: { step: number }) {
   return (
-    <div className="space-y-3">
-      {rows.map((row, ri) => (
-        <div key={ri} className="grid grid-cols-4 gap-3">
-          {row.map((card, ci) => (
-            <div
-              key={ci}
-              className="relative rounded-[10px] overflow-hidden cursor-pointer group hover:-translate-y-0.5 hover:shadow-[0_8px_28px_rgba(0,0,0,0.20)] transition-all"
-              style={{ height: 148 }}
-            >
-              {/* Photo background */}
-              <Image
-                src={card.img}
-                alt={card.title}
-                fill
-                className="object-cover group-hover:scale-105 transition-transform duration-500"
-                sizes="(max-width: 1260px) 25vw, 285px"
-              />
-
-              {/* Gradient overlay */}
-              <div className="absolute inset-0 bg-linear-to-br from-black/50 via-black/25 to-black/5" />
-              <div className="absolute inset-0 bg-linear-to-t from-black/65 via-transparent to-transparent" />
-
-              {/* Flash sale extra tint */}
-              {card.flashSale && (
-                <div className="absolute inset-0 bg-linear-to-r from-[#05174a]/60 to-transparent" />
-              )}
-
-              {/* ── Top row ── */}
-              <div className="absolute top-2.5 left-2.5 right-2.5 flex items-start justify-between gap-1">
-                <CouponChip code={card.code} />
-                {card.nvs && <NVSBadge />}
-                {card.flashSale && (
-                  <div className="flex flex-col items-end gap-0.5">
-                    <span className="text-[7px] font-extrabold text-[#1a1a1a] bg-[#FFD600] px-1.5 py-0.5 rounded uppercase tracking-wide leading-none">
-                      iFlash Sale ⚡
-                    </span>
-                  </div>
-                )}
-              </div>
-
-              {/* ── Bottom content ── */}
-              <div className="absolute bottom-0 left-0 right-0 px-3 pb-2.5">
-                {card.flashTime && (
-                  <span className="inline-block bg-[#FF4F17] text-white text-[8px] font-bold px-2 py-[2px] rounded-full mb-1 tracking-wide">
-                    {card.flashTime}
-                  </span>
-                )}
-                <p className="text-[17px] font-extrabold text-white leading-tight drop-shadow">
-                  {card.title}
-                </p>
-                <p className="text-[10px] text-white/80 font-medium mt-0.5 line-clamp-1">
-                  {card.sub}
-                </p>
-                {card.banks && card.banks.length > 0 && (
-                  <div className="flex items-center gap-1 mt-1.5 flex-wrap">
-                    {card.banks.map((b) => (
-                      <BankPill key={b.name} name={b.name} bg={b.bg} fg={b.fg} />
-                    ))}
-                  </div>
-                )}
-              </div>
+    <div className="space-y-2.5">
+      {STEPS.map((s, i) => {
+        const done = i < step;
+        const active = i === step;
+        return (
+          <div key={i} className={cn("flex items-start gap-2.5 transition-opacity duration-300", i > step && "opacity-25")}>
+            <div className={cn(
+              "w-5 h-5 rounded-full flex items-center justify-center shrink-0 mt-0.5 text-[10px] font-bold",
+              done ? "bg-[#22c55e] text-white" : active ? "bg-[#FF4F17] text-white animate-pulse" : "bg-[#e5e7eb] text-[#aaa]",
+            )}>
+              {done ? "✓" : active ? "…" : "·"}
             </div>
-          ))}
+            <div className="min-w-0 flex-1">
+              <p className={cn("text-[13px] leading-snug", done ? "text-[#aaa] line-through" : active ? "text-[#1a1a1a]" : "text-[#bbb]")}>
+                {s.icon} {s.text}
+              </p>
+              {done && <p className="text-[11.5px] text-[#22c55e] mt-0.5 font-medium">{s.result}</p>}
+            </div>
+          </div>
+        );
+      })}
+      {step < STEPS.length && (
+        <div className="mt-2 h-1.5 rounded-full bg-[#f0f0f0] overflow-hidden">
+          <div className="h-full rounded-full bg-[#FF4F17] transition-all duration-700" style={{ width: `${(step / STEPS.length) * 100}%` }} />
         </div>
+      )}
+    </div>
+  );
+}
+
+function TypingDots() {
+  return (
+    <div className="flex items-center gap-1 py-1">
+      {[0, 1, 2].map(i => (
+        <div key={i} className="w-1.5 h-1.5 rounded-full bg-[#ccc] animate-bounce" style={{ animationDelay: `${i * 120}ms` }} />
       ))}
     </div>
   );
 }
 
-/* ─── Promo Banner ───────────────────────────────────────── */
-const airlines = ["IndiGo", "Air India", "Akasa Air", "Vistara", "Malaysia", "SpiceJet", "GoFirst", "Vistara"];
-
-function PromoBanner() {
+function Spark() {
   return (
-    <div className="rounded-[12px] overflow-hidden border border-[#e5e7eb] shadow-[0_2px_8px_rgba(0,0,0,0.08)]">
-      <div className="relative h-[155px]">
-        <Image src="https://picsum.photos/seed/airplane-wide/1400/500" alt="Flight deals" fill className="object-cover" sizes="100vw" priority />
-        <div className="absolute inset-0 bg-linear-to-r from-[#001e70]/85 via-[#001e70]/55 to-transparent" />
-        <div className="absolute inset-0 flex flex-col justify-center px-10">
-          <p className="text-[10px] font-bold text-white/70 uppercase tracking-widest mb-1">Cleartrip Exclusive</p>
-          <h2 className="text-[28px] font-extrabold text-white leading-none">Up to 25% off</h2>
-          <p className="text-[14px] font-semibold text-white/80 mt-0.5">on Flights</p>
-        </div>
-        <div className="absolute right-5 bottom-3 top-3 flex items-center">
-          <button className="bg-[#FF4F17] text-white text-[12px] font-bold px-5 py-2 rounded-[6px] hover:bg-[#e03d08] transition-colors">
-            Book Now
+    <div className="w-6 h-6 rounded-lg bg-[#1a1a1a] flex items-center justify-center shrink-0 mt-0.5 shadow-sm">
+      <svg width="10" height="10" viewBox="0 0 24 24" fill="white">
+        <path d="M12 2l2.4 7.4H22l-6.2 4.5 2.4 7.4L12 17l-6.2 4.3 2.4-7.4L2 9.4h7.6z" />
+      </svg>
+    </div>
+  );
+}
+
+function SummaryBubble({ pairs }: { pairs: SummaryPair[] }) {
+  return (
+    <div className="flex justify-end">
+      <div className="bg-[#f5f5f5] border border-[#e5e7eb] rounded-2xl rounded-tr-sm px-4 py-3 max-w-[75%]">
+        {pairs.map((p, i) => (
+          <div key={i} className={cn(i > 0 && "mt-2 pt-2 border-t border-[#e5e7eb]")}>
+            <p className="text-[11px] text-[#aaa]">Q: {p.q}</p>
+            <p className="text-[13px] text-[#1a1a1a] font-medium mt-0.5">A: {p.a}</p>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+/* ── Question card ──────────────────────────────────────── */
+function QuestionCard({
+  q, qIdx, selected, onPick, onSubmit, onSkip,
+}: {
+  q: QDef; qIdx: number; selected: string[];
+  onPick: (v: string) => void; onSubmit: (v: string) => void; onSkip: () => void;
+}) {
+  const [draft, setDraft] = useState("");
+  const [hi, setHi] = useState(-1);
+
+  useEffect(() => { setDraft(""); setHi(-1); }, [q.id]);
+
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) {
+      if (e.key === "ArrowUp") { e.preventDefault(); setHi(h => Math.max(0, h - 1)); }
+      else if (e.key === "ArrowDown") { e.preventDefault(); setHi(h => Math.min(q.options.length - 1, h + 1)); }
+      else if (e.key === "Enter" && hi >= 0 && !draft) {
+        const lbl = q.options[hi].label;
+        onPick(lbl);
+        if (!q.multi) onSubmit(lbl);
+      } else if (e.key === "Escape") onSkip();
+    }
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [hi, draft, q, onPick, onSubmit, onSkip]);
+
+  function submit() {
+    if (draft.trim()) { onSubmit(draft.trim()); return; }
+    if (q.multi && selected.length) { onSubmit(selected.join(" + ")); return; }
+    if (!q.multi && selected.length) { onSubmit(selected[0]); }
+  }
+
+  const showDone = q.multi && selected.length > 0;
+  const showSend = !showDone && !!draft.trim();
+
+  return (
+    <div className="bg-white border border-[#e5e7eb] rounded-2xl overflow-hidden shadow-[0_4px_16px_rgba(0,0,0,0.08)]">
+      <div className="flex items-center justify-between px-5 py-4">
+        <span className="text-[15px] font-semibold text-[#1a1a1a]">{q.question}</span>
+        <div className="flex items-center gap-3">
+          <span className="text-[12px] text-[#aaa]">{qIdx + 1} of {q.pageOf}</span>
+          <button onClick={onSkip} className="text-[#ccc] hover:text-[#888] transition-colors">
+            <X size={16} />
           </button>
         </div>
       </div>
-      <div className="bg-white px-8 py-3 flex items-center gap-8 overflow-x-auto border-t border-[#f0f0f0]" style={{ scrollbarWidth: "none" }}>
-        {airlines.map((name) => (
-          <span key={name} className="shrink-0 text-[10px] font-bold uppercase tracking-wider text-[#666] hover:text-[#FF4F17] transition-colors cursor-pointer">
-            {name}
-          </span>
-        ))}
-      </div>
-    </div>
-  );
-}
-
-/* ─── Popular Destinations ───────────────────────────────── */
-const destinations = [
-  { city: "Goa", count: "605 Properties", img: "https://picsum.photos/seed/goa-beach/440/340" },
-  { city: "Delhi", count: "620 Properties", img: "https://picsum.photos/seed/delhi-india/440/340" },
-  { city: "Bangalore", count: "550 Properties", img: "https://picsum.photos/seed/bangalore-city/440/340" },
-  { city: "Jaipur", count: "310 Properties", img: "https://picsum.photos/seed/jaipur-fort/440/340" },
-  { city: "Pattaya", count: "980 Properties", img: "https://picsum.photos/seed/pattaya-sea/440/340" },
-];
-
-function PopularDestinations() {
-  return (
-    <div>
-      <h2 className="text-[16px] font-semibold text-[#1a1a1a] mb-3">Popular destinations</h2>
-      <div className="flex gap-3">
-        {destinations.map((d, i) => (
-          <div key={i} className="flex-1 rounded-[10px] overflow-hidden cursor-pointer group hover:-translate-y-0.5 hover:shadow-[0_6px_20px_rgba(0,0,0,0.14)] transition-all border border-[#e5e7eb]">
-            <div className="relative h-[130px]">
-              <Image src={d.img} alt={d.city} fill className="object-cover group-hover:scale-110 transition-transform duration-500" sizes="20vw" />
-              <div className="absolute inset-0 bg-linear-to-t from-black/65 to-transparent" />
-              <div className="absolute bottom-2.5 left-3">
-                <p className="text-[15px] font-bold text-white">{d.city}</p>
-                <p className="text-[10px] text-white/70">{d.count}</p>
+      <div className="border-t border-[#f0f0f0]">
+        {q.options.map((opt, i) => {
+          const picked = selected.includes(opt.label);
+          const highlighted = hi === i;
+          return (
+            <button
+              key={opt.label}
+              onClick={() => { onPick(opt.label); if (!q.multi) onSubmit(opt.label); }}
+              className={cn(
+                "w-full flex items-center gap-3.5 px-5 py-3.5 text-left border-b border-[#f5f5f5] last:border-0 transition-colors",
+                picked ? "bg-[#f8f8f8]" : highlighted ? "bg-[#f8f9fb]" : "hover:bg-[#fafbfd]",
+              )}
+            >
+              <div className={cn(
+                "w-6 h-6 rounded-full flex items-center justify-center text-[11px] font-bold shrink-0",
+                picked ? "bg-[#1a1a1a] text-white" : "bg-[#f0f0f0] text-[#888]",
+              )}>
+                {q.multi && picked ? "✓" : i + 1}
               </div>
-            </div>
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-}
-
-/* ─── Content + FAQ ──────────────────────────────────────── */
-const bullets = [
-  "Browse across 500+ airlines including IndiGo, Air India, Vistara, Akasa Air, and international carriers",
-  "No hidden fees — the price you see is the price you pay",
-  "Flexible Booking & Cancellations — Modify or cancel with ease",
-  "Best Price Guarantee — best available fares across all airlines",
-  "Downloadable Digital Invoice — GST invoices for business travel",
-  "24/7 Customer Support — for flight changes, cancellations, and more",
-];
-
-const faqs = [
-  { q: "How to Book Flight Tickets Online on Cleartrip?", a: "Enter your source city, destination, and travel date, then click Search Flights. Browse results by price, duration, stops, or airline. Select your preferred flight, enter passenger details, and complete payment. Your e-ticket is sent instantly to your email and SMS." },
-  { q: "How to Find Cheap Flights on Cleartrip?", a: "Use the Fare Calendar to compare prices across dates. Filter by non-stop flights, preferred airlines, or departure time. Book early morning or late-night flights for lower fares. Check Cleartrip Offers for exclusive discounts with partner banks." },
-  { q: "How do I reschedule or cancel my flight?", a: "For most airlines, you can reschedule or cancel via the My Trips section. Fees depend on airline fare rules and how far in advance you're changing. Some promotional fares are non-refundable — check fare details before booking." },
-  { q: "What payment options are available?", a: "Cleartrip accepts all major credit/debit cards, net banking from 50+ banks, UPI (Google Pay, PhonePe, Paytm, BHIM), and digital wallets. EMI options available on select cards for bookings above ₹2000." },
-  { q: "Does Cleartrip offer special discounts on flight bookings?", a: "Yes. Cleartrip regularly offers bank partner discounts (HDFC, ICICI, SBI, Axis), new user offers, seasonal sale fares, and exclusive international flight deals. Check the Offers section or apply promo codes at checkout." },
-];
-
-function ContentSection() {
-  const [open, setOpen] = useState<number | null>(null);
-  return (
-    <div className="space-y-4">
-      <div className="bg-white rounded-[10px] border border-[#e5e7eb] p-5">
-        <h2 className="text-[15px] font-semibold text-[#1a1a1a] mb-2">Book Domestic and International Flight Tickets at Lowest Airfares on Cleartrip</h2>
-        <p className="text-[12px] text-[#555] leading-relaxed mb-3">
-          Cleartrip makes booking flights simple, secure, and hassle-free. Whether it&apos;s a quick domestic trip or an international getaway, you can instantly compare flights, find the lowest airfares, and book in just a few clicks.
-        </p>
-        <h3 className="text-[13px] font-semibold text-[#1a1a1a] mb-2">Why Choose Cleartrip for Flight Booking?</h3>
-        <ul className="space-y-1.5">
-          {bullets.map((bp, i) => (
-            <li key={i} className="flex items-start gap-2 text-[12px] text-[#555]">
-              <span className="text-[#FF4F17] font-bold mt-0.5 shrink-0">•</span>{bp}
-            </li>
-          ))}
-        </ul>
-      </div>
-      <div className="bg-white rounded-[10px] border border-[#e5e7eb]">
-        <div className="px-5 py-4 border-b border-[#f0f0f0]">
-          <h2 className="text-[15px] font-semibold text-[#1a1a1a]">FAQs: Flight Booking on Cleartrip</h2>
-        </div>
-        {faqs.map((faq, i) => (
-          <div key={i} className={i < faqs.length - 1 ? "border-b border-[#f5f5f5]" : ""}>
-            <button className="w-full flex items-center justify-between px-5 py-3.5 text-left hover:bg-[#fafafa] transition-colors" onClick={() => setOpen(open === i ? null : i)}>
-              <span className="text-[13px] font-medium text-[#1a1a1a] pr-4">{faq.q}</span>
-              <span className={`text-[#aaa] shrink-0 transition-transform duration-200 ${open === i ? "rotate-90" : ""}`}><Ic.ChevRight /></span>
+              <span className={cn("flex-1 text-[14px]", picked ? "text-[#1a1a1a] font-semibold" : "text-[#333]")}>
+                {opt.label}
+              </span>
             </button>
-            {open === i && <div className="px-5 pb-4 text-[12px] text-[#555] leading-relaxed bg-[#fafafa] border-t border-[#f0f0f0]">{faq.a}</div>}
-          </div>
-        ))}
+          );
+        })}
+      </div>
+      <div className="border-t border-[#f0f0f0] flex items-center gap-2 px-3.5 py-2.5">
+        <input
+          value={draft}
+          onChange={e => setDraft(e.target.value)}
+          onKeyDown={e => { if (e.key === "Enter" && draft.trim()) submit(); }}
+          placeholder={q.placeholder}
+          className="flex-1 bg-transparent text-[14px] text-[#1a1a1a] placeholder:text-[#ccc] outline-none"
+        />
+        {showDone && (
+          <button onClick={submit} className="text-[12px] font-semibold text-white bg-[#1a1a1a] hover:bg-[#333] px-3.5 py-1.5 rounded-full transition-colors shrink-0">
+            Done →
+          </button>
+        )}
+        {showSend && (
+          <button onClick={submit} className="w-7 h-7 rounded-full bg-[#1a1a1a] flex items-center justify-center shrink-0 hover:bg-[#333] transition-colors">
+            <PaperPlaneTilt size={13} color="white" weight="fill" />
+          </button>
+        )}
+        {!showDone && !showSend && (
+          <button onClick={onSkip} className="text-[12px] text-[#ccc] hover:text-[#888] px-2 transition-colors shrink-0">Skip</button>
+        )}
+      </div>
+      <div className="bg-[#fafbfd] border-t border-[#f0f0f0] px-5 py-1.5 flex justify-center">
+        <span className="text-[10.5px] text-[#ccc]">↑↓ to navigate  ·  Enter to select  ·  Esc to skip</span>
       </div>
     </div>
   );
 }
 
-/* ─── Footer ─────────────────────────────────────────────── */
-const footerCols: Record<string, string[]> = {
-  Company: ["About Us", "Jobs", "Support", "Blog", "Cleartrip for Business", "Gift Cards"],
-  "Product Offerings": ["International Flights", "Domestic Flights", "Group Bookings", "Student Fares", "Chartered Flights"],
-  "Popular Domestic Flights": ["Delhi to Mumbai", "Mumbai to Delhi", "Delhi to Bangalore", "Bangalore to Delhi", "Mumbai to Goa"],
-  "Popular International Flights": ["Delhi to Dubai", "Mumbai to Singapore", "Bangalore to London", "Delhi to New York", "Mumbai to Bangkok"],
-  "Popular Hotels": ["Hotels in Goa", "Hotels in Delhi", "Hotels in Mumbai", "Hotels in Bangalore", "Hotels in Jaipur"],
-};
+const RECENT_TRIPS = [
+  { title: "Bali Getaway", dates: "12 – 17 Jun · 5 days", img: "https://picsum.photos/seed/bali-getaway/80/60" },
+  { title: "Japan Adventure", dates: "9 – 16 Jul · 8 days", img: "https://picsum.photos/seed/japan-adv/80/60" },
+  { title: "Europe Summer", dates: "2 – 12 Aug · 11 days", img: "https://picsum.photos/seed/europe-sum/80/60" },
+];
 
-function Footer() {
+/* ── Chat list panel ────────────────────────────────────── */
+function ChatListPanel({ onNew, onClose }: { onNew: () => void; onClose: () => void }) {
+  const [tab, setTab] = useState<"all" | "trips">("all");
+  const [search, setSearch] = useState("");
+
   return (
-    <footer className="bg-white border-t border-[#e5e7eb] mt-6">
-      <div className="max-w-[1260px] mx-auto px-5 py-8">
-        <div className="grid grid-cols-5 gap-6 pb-6 border-b border-[#f0f0f0]">
-          {Object.entries(footerCols).map(([heading, links]) => (
-            <div key={heading}>
-              <p className="text-[10px] font-bold text-[#1a1a1a] uppercase tracking-wider mb-3">{heading}</p>
-              <ul className="space-y-2">
-                {links.map((link) => (
-                  <li key={link}><a href="#" className="text-[11px] text-[#666] hover:text-[#FF4F17] transition-colors">{link}</a></li>
-                ))}
-              </ul>
-            </div>
-          ))}
+    <div className="w-[272px] shrink-0 flex flex-col bg-white border-r border-[#e5e7eb]">
+      {/* Header */}
+      <div className="flex items-center justify-between px-4 py-3 border-b border-[#f0f0f0]">
+        <div className="flex items-center gap-2">
+          <ChatCircle size={18} weight="fill" className="text-[#1a1a1a]" />
+          <span className="text-[15px] font-bold text-[#1a1a1a]">Chats</span>
+          <span className="text-[11px] font-bold bg-[#f0f0f0] text-[#666] rounded-full px-2 py-0.5">2</span>
         </div>
-        <div className="pt-4 flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <div className="w-5 h-5 rounded bg-[#FF4F17] flex items-center justify-center"><Ic.Check /></div>
-            <span className="font-extrabold text-[17px] text-[#FF4F17]">cleartrip</span>
-            <span className="text-[9px] text-[#bbb] italic border-l border-[#e5e7eb] pl-2">A Flipkart Company</span>
+        <div className="flex items-center gap-1.5">
+          <button
+            onClick={onNew}
+            className="flex items-center gap-1.5 bg-[#1a1a1a] text-white text-[12px] font-semibold px-3 py-1.5 rounded-full hover:bg-[#333] transition-colors"
+          >
+            <Plus size={12} weight="bold" />
+            New Chat
+          </button>
+          <button
+            onClick={onClose}
+            className="w-7 h-7 flex items-center justify-center rounded-full text-[#aaa] hover:bg-[#f5f5f5] hover:text-[#555] transition-colors"
+          >
+            <X size={14} />
+          </button>
+        </div>
+      </div>
+
+      {/* Search */}
+      <div className="px-3 py-2.5 border-b border-[#f0f0f0]">
+        <div className="flex items-center gap-2 bg-[#f5f5f5] rounded-xl px-3 py-2">
+          <MagnifyingGlass size={14} className="text-[#aaa] shrink-0" />
+          <input
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+            placeholder="Search..."
+            className="flex-1 bg-transparent text-[13px] text-[#1a1a1a] placeholder:text-[#bbb] outline-none"
+          />
+          <span className="text-[10px] text-[#bbb] font-mono shrink-0">⌘1</span>
+        </div>
+      </div>
+
+      {/* Tabs */}
+      <div className="flex px-3 pt-2.5 gap-4 border-b border-[#f0f0f0]">
+        {(["all", "trips"] as const).map(t => (
+          <button
+            key={t}
+            onClick={() => setTab(t)}
+            className={cn(
+              "pb-2.5 text-[13px] font-semibold capitalize border-b-2 transition-colors",
+              tab === t ? "border-[#1a1a1a] text-[#1a1a1a]" : "border-transparent text-[#aaa] hover:text-[#555]",
+            )}
+          >
+            {t === "all" ? "All" : "Trips"}
+          </button>
+        ))}
+      </div>
+
+      {/* All tab — empty state */}
+      {tab === "all" && (
+        <div className="flex-1 flex flex-col items-center justify-center gap-3 px-4 pb-8">
+          <div className="w-16 h-16 rounded-2xl bg-[#f5f5f5] flex items-center justify-center">
+            <ChatCircle size={32} className="text-[#ddd]" weight="fill" />
           </div>
-          <p className="text-[10px] text-[#bbb]">© 2026 Cleartrip Pvt. Ltd. All rights reserved.</p>
-          <div className="flex items-center gap-2">
-            {["f", "t", "in", "yt"].map((s) => (
-              <button key={s} className="w-6 h-6 rounded-full bg-[#f0f0f0] hover:bg-[#FF4F17] hover:text-white text-[#999] flex items-center justify-center text-[9px] font-bold uppercase transition-all">{s}</button>
+          <p className="text-[13px] text-[#aaa] font-medium">No Chat History</p>
+          <button
+            onClick={onNew}
+            className="flex items-center gap-1.5 text-[12px] text-[#555] border border-[#e5e7eb] px-4 py-2 rounded-full hover:bg-[#f5f5f5] transition-colors font-medium"
+          >
+            <Plus size={12} weight="bold" />
+            New Chat
+          </button>
+        </div>
+      )}
+
+      {/* Trips tab */}
+      {tab === "trips" && (
+        <div className="flex-1 overflow-y-auto px-3 py-3" style={{ scrollbarWidth: "thin" }}>
+          <p className="text-[10px] font-semibold text-[#aaa] uppercase tracking-wider px-1 mb-2">Your Trips</p>
+          <div className="space-y-1">
+            {RECENT_TRIPS.map((trip, i) => (
+              <button
+                key={i}
+                className="w-full flex items-center gap-3 p-2.5 rounded-xl hover:bg-[#f5f5f5] transition-colors text-left"
+              >
+                <div className="w-14 h-11 rounded-lg overflow-hidden shrink-0">
+                  <img src={trip.img} alt={trip.title} className="w-full h-full object-cover" />
+                </div>
+                <div className="min-w-0">
+                  <p className="text-[13px] font-semibold text-[#1a1a1a] leading-tight">{trip.title}</p>
+                  <p className="text-[11px] text-[#999] mt-0.5">{trip.dates}</p>
+                </div>
+              </button>
             ))}
           </div>
         </div>
-      </div>
-    </footer>
-  );
-}
-
-/* ─── NVS Hero Badge ─────────────────────────────────────── */
-function NVSHeroBadge() {
-  return (
-    <div className="rounded-[8px] overflow-hidden shadow-md w-[88px] shrink-0">
-      <div className="bg-[#0a1f6e] px-2 py-1.5 text-center">
-        <p className="text-[7px] font-extrabold text-white uppercase tracking-widest leading-tight">NATION</p>
-        <p className="text-[7px] font-extrabold text-white uppercase tracking-widest leading-tight">VACATION</p>
-        <p className="text-[9px] font-extrabold text-[#FFD600] uppercase tracking-wider leading-tight">SALE</p>
-      </div>
-      <button className="w-full bg-[#FF4F17] hover:bg-[#e03d08] text-white text-[8px] font-bold py-1 flex items-center justify-center gap-0.5 transition-colors">
-        <svg width="6" height="8" viewBox="0 0 6 8" fill="white"><polygon points="0,0 6,4 0,8"/></svg>
-        Live now
-      </button>
+      )}
     </div>
   );
 }
 
-/* ─── Page ───────────────────────────────────────────────── */
-export default function Home() {
-  return (
-    <div className="min-h-screen bg-white" style={{ fontFamily: "'Inter', sans-serif" }}>
-      <Header active="flights" />
+const TYPE_STYLES: Record<InspirationItem["type"], string> = {
+  BLOG: "bg-[#e8f4fd] text-[#1a6fa8]",
+  VIDEO: "bg-[#fde8e8] text-[#c0392b]",
+  ITINERARY: "bg-[#e8fdf0] text-[#1a7a45]",
+};
 
-      {/* Hero gradient band */}
-      <div className="bg-linear-to-br from-[#cdddf7] via-[#dce9fb] to-[#eef4fd] pb-8">
-        <div className="max-w-[1260px] mx-auto px-5 pt-6">
-          <div className="flex gap-5">
-            {/* Left: title + search */}
-            <div className="flex-1 min-w-0">
-              <div className="flex items-start justify-between mb-3">
-                <div>
-                  <h1 className="text-[30px] font-extrabold text-[#1a1a1a] leading-tight tracking-tight">
-                    Biggest discounts on Flights
-                  </h1>
-                  <p className="text-[14px] text-[#555] mt-1.5">
-                    Up to 25% off&nbsp;|&nbsp;Flights from ₹999&nbsp;|&nbsp;Free Visa Rejection Cover
-                  </p>
-                </div>
-                <NVSHeroBadge />
+/* ── Right panel ────────────────────────────────────────── */
+function RightPanel() {
+  const [inspiTab, setInspiTab] = useState<"All" | "Blogs" | "Videos" | "Itineraries">("All");
+
+  const filtered = inspiTab === "All"
+    ? INSPIRATION
+    : INSPIRATION.filter(item =>
+        inspiTab === "Blogs" ? item.type === "BLOG"
+        : inspiTab === "Videos" ? item.type === "VIDEO"
+        : item.type === "ITINERARY"
+      );
+
+  return (
+    <div className="w-[360px] shrink-0 border-l border-[#e5e7eb] bg-white overflow-y-auto" style={{ scrollbarWidth: "thin" }}>
+      {/* Popular right now */}
+      <div className="px-4 pt-4 pb-3">
+        <div className="flex items-center justify-between mb-3">
+          <p className="text-[14px] font-medium text-[#1a1a1a]">Popular Right Now</p>
+          <button className="text-[12px] font-semibold text-[#555] border border-[#e5e7eb] px-3 py-1 rounded-lg hover:bg-[#f5f5f5] transition-colors">
+            See all
+          </button>
+        </div>
+        <div className="grid grid-cols-2 gap-2">
+          {TRENDING.map((d, i) => (
+            <div key={i} className="cursor-pointer group">
+              <div className="relative rounded-xl overflow-hidden aspect-[4/3]">
+                <Image src={d.img} alt={d.city} fill className="object-cover group-hover:scale-105 transition-transform duration-300" sizes="160px" />
               </div>
-              <FlightSearch />
+              <p className="mt-1.5 text-[11px] text-[#555] font-medium leading-snug">{d.city}</p>
             </div>
-            {/* Right: side panel */}
-            <SidePanel />
-          </div>
+          ))}
         </div>
       </div>
 
-      <div className="max-w-[1260px] mx-auto px-5 py-5">
-        <div className="mb-5"><OfferCardGrid /></div>
-        <div className="mb-5"><PromoBanner /></div>
-        <div className="mb-5"><PopularDestinations /></div>
-        <div className="mb-5"><ContentSection /></div>
+      <div className="mx-4 h-px bg-[#f0f0f0]" />
+
+      {/* Inspiration for you */}
+      <div className="px-4 pt-3 pb-1">
+        <div className="flex items-center justify-between mb-2.5">
+          <p className="text-[14px] font-medium text-[#1a1a1a]">Inspiration for you</p>
+          <button className="text-[12px] font-semibold text-[#555] border border-[#e5e7eb] px-3 py-1 rounded-lg hover:bg-[#f5f5f5] transition-colors shrink-0 ml-2">
+            Explore
+          </button>
+        </div>
+
+        {/* Tabs */}
+        <div className="flex gap-1.5 mb-3 flex-wrap">
+          {(["All", "Blogs", "Videos", "Itineraries"] as const).map(tab => (
+            <button
+              key={tab}
+              onClick={() => setInspiTab(tab)}
+              className={cn(
+                "text-[11.5px] font-semibold px-3 py-1 rounded-full border transition-colors",
+                inspiTab === tab
+                  ? "bg-[#1a1a1a] text-white border-[#1a1a1a]"
+                  : "text-[#555] border-[#e5e7eb] hover:bg-[#f5f5f5]",
+              )}
+            >
+              {tab}
+            </button>
+          ))}
+        </div>
+
+        <div className="space-y-3">
+          {filtered.map((item, i) => (
+            <a
+              key={i}
+              href={item.href}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex gap-3 group cursor-pointer"
+            >
+              <div className="relative w-[100px] shrink-0 rounded-xl overflow-hidden aspect-[4/3]">
+                <Image src={item.img} alt={item.title} fill className="object-cover group-hover:scale-105 transition-transform duration-300" sizes="100px" />
+                {/* <span className={cn("absolute top-1.5 left-1.5 text-[9px] font-extrabold px-1.5 py-0.5 rounded-full uppercase tracking-wide", TYPE_STYLES[item.type])}>
+                  {item.type}
+                </span> */}
+              </div>
+              <div className="flex-1 min-w-0 py-0.5">
+                <p className="text-[12px] font-semibold text-[#1a1a1a] leading-tight line-clamp-2 group-hover:text-[#444] transition-colors">{item.title}</p>
+                <p className="mt-0.5 text-[10.5px] text-[#888] leading-snug line-clamp-2">{item.sub}</p>
+                <div className="flex flex-wrap gap-1 mt-1.5">
+                  {item.tags.map(tag => (
+                    <span key={tag} className="text-[10px] text-[#888] hover:text-[#555] transition-colors">{tag}</span>
+                  ))}
+                </div>
+                <p className="mt-1 text-[10px] text-[#bbb]">{item.source}</p>
+              </div>
+            </a>
+          ))}
+        </div>
       </div>
 
-      <Footer />
+      <div className="mx-4 h-px bg-[#f0f0f0] mt-4" />
+
+      {/* From the community */}
+      <div className="px-4 pt-3 pb-5">
+        <div className="flex items-center justify-between mb-3">
+          <p className="text-[14px] font-medium text-[#1a1a1a]">From the community</p>
+          <button className="text-[12px] font-semibold text-[#555] border border-[#e5e7eb] px-3 py-1 rounded-lg hover:bg-[#f5f5f5] transition-colors">
+            View all
+          </button>
+        </div>
+        <div className="space-y-2.5">
+          {COMMUNITY.map((post, i) => (
+            <div key={i} className="flex gap-3 cursor-pointer group">
+              <div className="relative w-14 h-11 rounded-lg overflow-hidden shrink-0">
+                <Image src={post.img} alt={post.title} fill className="object-cover group-hover:scale-105 transition-transform duration-300" sizes="56px" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-[12px] font-semibold text-[#1a1a1a] leading-tight line-clamp-2 group-hover:text-[#444] transition-colors">{post.title}</p>
+                <div className="flex flex-wrap gap-1 mt-1">
+                  {post.tags.map(tag => (
+                    <span key={tag} className="text-[10px] text-[#aaa]">{tag}</span>
+                  ))}
+                </div>
+                <p className="text-[10px] text-[#bbb] mt-0.5">by {post.user}</p>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ── Main chat area ─────────────────────────────────────── */
+function ChatArea({
+  stage, msgs, isTyping, planStep, qIdx, selected,
+  onStart, onPick, onAnswer, onSkip, endRef,
+}: {
+  stage: Stage;
+  msgs: Msg[];
+  isTyping: boolean;
+  planStep: number;
+  qIdx: number;
+  selected: string[];
+  onStart: (v: string) => void;
+  onPick: (v: string) => void;
+  onAnswer: (v: string) => void;
+  onSkip: () => void;
+  endRef: React.RefObject<HTMLDivElement | null>;
+}) {
+  const [draft, setDraft] = useState("");
+  const [promptSet, setPromptSet] = useState(0);
+  const showCard = stage === "q1" || stage === "q2" || stage === "q3" || stage === "q4";
+  const cards = PROMPT_CARD_SETS[promptSet];
+
+  function sendFree(txt: string) {
+    if (!txt.trim()) return;
+    onStart(txt.trim());
+    setDraft("");
+  }
+
+  return (
+    <div className="flex-1 flex flex-col min-h-0 bg-[#fafafa]">
+      {/* Top bar */}
+      <div className="flex items-center justify-between px-6 py-3 bg-white border-b border-[#e5e7eb] shrink-0">
+        <p className="text-[15px] font-bold text-[#1a1a1a]">New Chat</p>
+        <div className="flex items-center gap-2">
+          <button className="flex items-center gap-1.5 text-[12px] font-semibold text-[#555] border border-[#e5e7eb] px-3.5 py-1.5 rounded-full hover:bg-[#f5f5f5] transition-colors">
+            <Plus size={12} weight="bold" />
+            Create a Trip
+          </button>
+          <button className="text-[12px] font-semibold text-[#555] border border-[#e5e7eb] px-3.5 py-1.5 rounded-full hover:bg-[#f5f5f5] transition-colors">
+            Invite
+          </button>
+          <button className="flex items-center gap-1 text-[12px] font-semibold text-[#555] border border-[#e5e7eb] px-3.5 py-1.5 rounded-full hover:bg-[#f5f5f5] transition-colors">
+            🇮🇳 English
+            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><polyline points="6 9 12 15 18 9" /></svg>
+          </button>
+        </div>
+      </div>
+
+      {/* Messages scroll area */}
+      <div className="flex-1 overflow-y-auto px-6 pb-6 pt-24" style={{ scrollbarWidth: "thin" }}>
+        {/* Idle / welcome state */}
+        {stage === "idle" && (
+          <div className="max-w-[620px] mx-auto">
+            <div className="mb-7">
+              <h1 className="text-[26px] font-bold text-[#1a1a1a] leading-snug">
+                Hey there, <span className="text-[#FF4F17]">Traveller</span>
+              </h1>
+              <p className="text-[20px] font-semibold text-[#1a1a1a] mt-0.5">Where would you like to go?</p>
+              <p className="text-[14px] text-[#888] mt-2 leading-relaxed">
+                I&apos;m here to assist you in planning your experience. Ask me anything travel related.
+              </p>
+            </div>
+
+            {/* Prompt suggestion cards */}
+            <div className="space-y-2.5 mb-5">
+              {cards.map((card, i) => (
+                <button
+                  key={i}
+                  onClick={() => sendFree(card.sub)}
+                  className="w-full flex items-start gap-3.5 p-4 bg-white border border-[#e5e7eb] rounded-xl hover:border-[#1a1a1a]/20 transition-all text-left group"
+                >
+                  <div className="w-10 h-10 rounded-xl bg-[#f5f5f5] flex items-center justify-center shrink-0">
+                    <card.Icon size={20} className="text-[#555]" />
+                  </div>
+                  <div className="min-w-0">
+                    <p className="text-[13px] font-semibold text-[#1a1a1a] group-hover:text-[#1a1a1a] transition-colors">{card.title}</p>
+                    <p className="text-[12px] text-[#888] mt-0.5 leading-snug line-clamp-2">{card.sub}</p>
+                  </div>
+                </button>
+              ))}
+            </div>
+
+            <button
+              onClick={() => setPromptSet(s => (s + 1) % PROMPT_CARD_SETS.length)}
+              className="flex items-center gap-2 text-[12px] text-[#888] hover:text-[#555] transition-colors"
+            >
+              <ArrowsClockwise size={13} />
+              Refresh prompts
+            </button>
+          </div>
+        )}
+
+        {/* Active conversation */}
+        {stage !== "idle" && (
+          <div className="max-w-[620px] mx-auto space-y-5">
+            {msgs.map(msg => {
+              if (msg.kind === "user-init") return (
+                <div key={msg.id} className="flex justify-end">
+                  <div className="bg-[#1a1a1a] text-white text-[14px] px-4 py-3 rounded-2xl rounded-tr-sm max-w-[80%] leading-relaxed shadow-sm">
+                    {msg.text}
+                  </div>
+                </div>
+              );
+              if (msg.kind === "ai") return (
+                <div key={msg.id} className="flex gap-2.5">
+                  <Spark />
+                  <p className="flex-1 min-w-0 text-[14px] text-[#1a1a1a] leading-relaxed whitespace-pre-line pt-0.5">{msg.text}</p>
+                </div>
+              );
+              if (msg.kind === "summary") return <SummaryBubble key={msg.id} pairs={msg.pairs!} />;
+              if (msg.kind === "planning-done") return (
+                <div key={msg.id} className="flex gap-2.5">
+                  <Spark />
+                  <div className="flex-1 min-w-0">
+                    <PlanningMsg step={STEPS.length} />
+                  </div>
+                </div>
+              );
+              return null;
+            })}
+
+            {stage === "planning" && planStep >= 0 && planStep < STEPS.length && (
+              <div className="flex gap-2.5">
+                <Spark />
+                <div className="flex-1 min-w-0 bg-white border border-[#e5e7eb] rounded-xl p-4 shadow-sm">
+                  <PlanningMsg step={planStep} />
+                </div>
+              </div>
+            )}
+
+            {isTyping && (
+              <div className="flex gap-2.5">
+                <Spark />
+                <div className="bg-white border border-[#e5e7eb] rounded-xl px-4 py-3 shadow-sm">
+                  <TypingDots />
+                </div>
+              </div>
+            )}
+            <div ref={endRef} />
+          </div>
+        )}
+      </div>
+
+      {/* Bottom input area */}
+      <div className="shrink-0 px-6 pb-5 max-w-[700px] mx-auto w-full">
+        {stage === "idle" && (
+          <div className="flex items-center gap-2 mb-2.5">
+            {["+Where", "+When", "+Travelers", "+Budget"].map(chip => (
+              <button key={chip} className="text-[12px] font-semibold text-[#555] border border-[#e5e7eb] px-3 py-1.5 rounded-full hover:bg-[#f5f5f5] hover:border-[#ccc] transition-colors bg-white">
+                {chip}
+              </button>
+            ))}
+          </div>
+        )}
+
+        {showCard && (
+          <QuestionCard q={QS[qIdx]} qIdx={qIdx} selected={selected}
+            onPick={onPick} onSubmit={onAnswer} onSkip={onSkip} />
+        )}
+
+        {(stage === "idle" || stage === "results") && (
+          <div className="flex items-center gap-3 bg-white border border-[#e5e7eb] rounded-2xl px-4 py-3 shadow-sm">
+            <button className="w-7 h-7 rounded-full bg-[#1a1a1a] flex items-center justify-center shrink-0 hover:bg-[#333] transition-colors">
+              <Plus size={14} color="white" weight="bold" />
+            </button>
+            <input
+              value={draft}
+              onChange={e => setDraft(e.target.value)}
+              onKeyDown={e => { if (e.key === "Enter") sendFree(draft); }}
+              placeholder={stage === "results" ? "Ask to change anything — 'swap the hotel', 'add a rest day'…" : "Ask anything…"}
+              className="flex-1 bg-transparent text-[14px] text-[#1a1a1a] placeholder:text-[#ccc] outline-none"
+            />
+            <Waveform size={18} className="text-[#ccc] hover:text-[#888] cursor-pointer shrink-0 transition-colors" />
+            <button
+              onClick={() => sendFree(draft)}
+              className={cn(
+                "w-8 h-8 rounded-full flex items-center justify-center shrink-0 transition-colors",
+                draft.trim() ? "bg-[#1a1a1a] hover:bg-[#333]" : "bg-[#f0f0f0] cursor-not-allowed",
+              )}
+            >
+              <PaperPlaneTilt size={14} color={draft.trim() ? "white" : "#ccc"} weight="fill" />
+            </button>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+/* ── Page ───────────────────────────────────────────────── */
+export default function AIPlanner() {
+  const [stage, setStage] = useState<Stage>("idle");
+  const [msgs, setMsgs] = useState<Msg[]>([]);
+  const [qIdx, setQIdx] = useState(0);
+  const [selected, setSelected] = useState<string[]>([]);
+  const [summaryPairs, setSummaryPairs] = useState<SummaryPair[]>([]);
+  const [planStep, setPlanStep] = useState(-1);
+  const [isTyping, setIsTyping] = useState(false);
+  const endRef = useRef<HTMLDivElement>(null);
+  const planTimer = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  const Q_STAGES: Stage[] = ["q1", "q2", "q3", "q4"];
+
+  useEffect(() => { endRef.current?.scrollIntoView({ behavior: "smooth" }); }, [msgs, isTyping, planStep]);
+  useEffect(() => () => { if (planTimer.current) clearInterval(planTimer.current); }, []);
+
+  function addMsg(m: Omit<Msg, "id">) {
+    setMsgs(prev => [...prev, { ...m, id: `${Date.now()}-${Math.random()}` }]);
+  }
+
+  function showAI(text: string, delay = 900) {
+    setIsTyping(true);
+    setTimeout(() => { setIsTyping(false); addMsg({ kind: "ai", text }); }, delay);
+  }
+
+  function startConversation(init: string) {
+    addMsg({ kind: "user-init", text: init });
+    setStage("q1");
+    showAI(AI_ACKS[0], 900);
+  }
+
+  function handleAnswer(answer: string) {
+    const q = QS[qIdx];
+    const newPair = { q: q.question, a: answer };
+    const allPairs = [...summaryPairs, newPair];
+    setSummaryPairs(allPairs);
+    setTimeout(() => addMsg({ kind: "summary", pairs: allPairs }), 80);
+
+    const next = qIdx + 1;
+    if (next < QS.length) {
+      setSelected([]);
+      setQIdx(next);
+      setStage(Q_STAGES[next]);
+      showAI(AI_ACKS[next], 950);
+    } else {
+      setStage("planning");
+      showAI("Perfect. Searching for the best flights, hotels and activities now…", 900);
+      let step = 0;
+      setPlanStep(0);
+      setTimeout(() => {
+        planTimer.current = setInterval(() => {
+          step++;
+          setPlanStep(step);
+          if (step >= STEPS.length) {
+            clearInterval(planTimer.current!);
+            setTimeout(() => {
+              setStage("results");
+              addMsg({ kind: "planning-done" });
+              showAI("Here's your 5-day Goa plan! ₹62,896 total — ₹17,104 under your ₹80,000 budget. 🎉\n\nTap any booking button on the right, or ask me to change anything.", 600);
+            }, 700);
+          }
+        }, 850);
+      }, 1500);
+    }
+  }
+
+  function handlePick(val: string) {
+    const q = QS[qIdx];
+    if (q.multi) setSelected(prev => prev.includes(val) ? prev.filter(v => v !== val) : [...prev, val]);
+    else setSelected([val]);
+  }
+
+  const [showChatsPanel, setShowChatsPanel] = useState(false);
+
+  function resetToIdle() {
+    setStage("idle");
+    setMsgs([]);
+    setQIdx(0);
+    setSelected([]);
+    setSummaryPairs([]);
+    setPlanStep(-1);
+    setIsTyping(false);
+    if (planTimer.current) clearInterval(planTimer.current);
+  }
+
+  return (
+    <div className="h-screen flex overflow-hidden bg-white">
+      <AppSidebar active="ai-planner" onToggleChats={() => setShowChatsPanel(p => !p)} showChats={showChatsPanel} />
+      {showChatsPanel && (
+        <ChatListPanel onNew={() => { resetToIdle(); }} onClose={() => setShowChatsPanel(false)} />
+      )}
+        <ChatArea
+          stage={stage}
+          msgs={msgs}
+          isTyping={isTyping}
+          planStep={planStep}
+          qIdx={qIdx}
+          selected={selected}
+          onStart={startConversation}
+          onPick={handlePick}
+          onAnswer={handleAnswer}
+          onSkip={() => handleAnswer("Skipped")}
+          endRef={endRef}
+        />
+        <RightPanel />
     </div>
   );
 }
