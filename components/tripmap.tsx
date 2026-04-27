@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect } from "react";
-import { MapContainer, TileLayer, Marker, Polyline, Popup, useMap } from "react-leaflet";
+import { MapContainer, TileLayer, Marker, Polyline, Tooltip, useMap } from "react-leaflet";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 
@@ -10,6 +10,8 @@ export interface MapDay {
   location: string;
   lat: number;
   lng: number;
+  img?: string;
+  tag?: string;
 }
 
 function createDayIcon(day: number, active: boolean) {
@@ -81,11 +83,28 @@ export default function TripMap({
           icon={createDayIcon(d.day, d.day === selectedDay)}
           eventHandlers={{ click: () => onSelectDay(d.day) }}
         >
-          <Popup>
-            <div style={{ fontFamily: "-apple-system,sans-serif", fontSize: 13, fontWeight: 600 }}>
-              Day {d.day} · {d.location}
+          <Tooltip direction="top" offset={[0, -18]} opacity={1} permanent={false}>
+            <div style={{
+              fontFamily: "-apple-system,sans-serif",
+              background: "white",
+              border: "1px solid #eee",
+              borderRadius: 12,
+              padding: "8px 10px",
+              boxShadow: "0 4px 16px rgba(0,0,0,0.12)",
+              minWidth: 140,
+              pointerEvents: "none",
+            }}>
+              {d.img && (
+                <img src={d.img} alt={d.location} style={{ width: "100%", height: 60, objectFit: "cover", borderRadius: 8, marginBottom: 6, display: "block" }} />
+              )}
+              <div style={{ fontSize: 9, fontWeight: 700, color: "#FF4F17", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 2 }}>
+                Day {d.day}
+              </div>
+              <div style={{ fontSize: 13, fontWeight: 700, color: "#1a1a1a", marginBottom: 1 }}>{d.location}</div>
+              {d.tag && <div style={{ fontSize: 10, color: "#888" }}>{d.tag}</div>}
+              <div style={{ marginTop: 6, fontSize: 10, color: "#FF4F17", fontWeight: 600 }}>Click for details →</div>
             </div>
-          </Popup>
+          </Tooltip>
         </Marker>
       ))}
     </MapContainer>
