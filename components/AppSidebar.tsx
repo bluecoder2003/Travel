@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import Image from "next/image";
 import { cn } from "@/lib/utils";
 import {
@@ -115,7 +116,7 @@ export function AppSidebar({
 
         {/* Logo */}
         <div className="flex justify-start items-center px-2 py-3 border-b border-[#f0f0f0] shrink-0 flex">
-          <a href="/">
+          <Link href="/">
             <Image
               src="/logo.png"
               alt="Cleartrip"
@@ -123,7 +124,7 @@ export function AppSidebar({
               height={32}
               className="h-8 w-auto object-contain"
             />
-          </a>
+          </Link>
           <p className="text-[10px] text-[#bbb] italic">
             A <span className="font-semibold not-italic text-[#999]">Flipkart</span> Company
           </p>
@@ -131,13 +132,13 @@ export function AppSidebar({
 
         {/* New trip + optional chat toggle */}
         <div className="px-4 pt-3 pb-2 shrink-0 flex gap-2">
-          <a
+          <Link
             href="/"
             className="flex-1 flex items-center justify-center gap-2 border border-[#e5e7eb] rounded-full py-2 text-[13px] font-semibold text-[#1a1a1a] hover:bg-[#fafafa] transition-colors"
           >
             <Plus size={14} weight="bold" />
             New trip
-          </a>
+          </Link>
           {onToggleChats && (
             <button
               onClick={onToggleChats}
@@ -163,7 +164,7 @@ export function AppSidebar({
               Services
             </p>
             {SERVICE_NAV.map(({ id, label, href, Icon }) => (
-              <a
+              <Link
                 key={id}
                 href={href}
                 className={cn(
@@ -175,7 +176,7 @@ export function AppSidebar({
               >
                 <Icon size={16} weight={active === id ? "fill" : "regular"} />
                 {label}
-              </a>
+              </Link>
             ))}
           </nav>
 

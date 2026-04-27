@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import Image from "next/image";
+import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -680,7 +681,7 @@ export default function Home() {
                 <FlightSearch />
 
                 {/* AI Planner entry-point banner */}
-                <a
+                <Link
                   href="/"
                   className="mt-4 flex items-center gap-4 bg-[#0a1f6e] rounded-[12px] px-5 py-4 hover:shadow-lg transition-shadow group"
                 >
@@ -695,7 +696,7 @@ export default function Home() {
                   <div className="text-white/60 group-hover:text-white group-hover:translate-x-0.5 transition-all shrink-0">
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="9 18 15 12 9 6" /></svg>
                   </div>
-                </a>
+                </Link>
               </div>
               <SidePanel />
             </div>

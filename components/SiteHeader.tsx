@@ -2,6 +2,7 @@
 
 import { type ReactNode } from "react";
 import Image from "next/image";
+import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { cn } from "@/lib/utils";
@@ -107,12 +108,12 @@ export function SiteHeader({ active, hideNav = false }: { active: ActiveTab; hid
       <div className="border-b border-[#ebebeb]">
         <div className="max-w-[1260px] mx-auto px-5 h-[48px] flex items-center justify-between">
           {/* Logo */}
-          <a href="/" className="flex items-center gap-2">
+          <Link href="/" className="flex items-center gap-2">
             <Image src="/logo.png" alt="Cleartrip" width={120} height={32} className="h-8 w-auto object-contain" />
             <span className="text-[11px] text-[#999] italic font-normal pl-2 border-l border-ct-border">
               A <span className="font-semibold not-italic">Flipkart</span> Company
             </span>
-          </a>
+          </Link>
 
           {/* Utility links */}
           <div className="flex items-center">
