@@ -3,7 +3,7 @@
 import { useState, useRef, useEffect } from "react";
 import { cn } from "@/lib/utils";
 import { SiteHeader } from "../../components/siteheader";
-import ChipInputBar from "@/components/chipinputbar";
+import ChipInputBar from "../../components/chipinputbar";
 
 /* ── Types ─────────────────────────────────────────────── */
 type Stage = "idle" | "q1" | "q2" | "q3" | "q4" | "planning" | "results";
