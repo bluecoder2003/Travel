@@ -3,7 +3,7 @@
 import { type ReactNode } from "react";
 import Image from "next/image";
 import Link from "next/link";
-import { Button } from "@/components/ui/button";
+import { Button } from "../components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { cn } from "@/lib/utils";
 
@@ -166,7 +166,7 @@ export function SiteHeader({ active, hideNav = false }: { active: ActiveTab; hid
               </a>
             ))}
             {/* AI Planner tab */}
-            <a
+            <Link
               href="/"
               className={cn(
                 "flex items-center gap-2 px-8 py-[14px] text-[15px] border-b-2 transition-colors whitespace-nowrap",
@@ -180,7 +180,7 @@ export function SiteHeader({ active, hideNav = false }: { active: ActiveTab; hid
               </div>
               AI Planner
               <span className="text-[9px] font-extrabold bg-ct-orange text-white px-1.5 py-0.5 rounded-full uppercase tracking-wide">NEW</span>
-            </a>
+            </Link>
           </div>
         </div>
       )}
