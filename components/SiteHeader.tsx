@@ -3,7 +3,7 @@
 import { type ReactNode } from "react";
 import Image from "next/image";
 import Link from "next/link";
-import { Button } from "../components/ui/button";
+import { Button } from "./ui/button";
 import { Separator } from "@/components/ui/separator";
 import { cn } from "@/lib/utils";
 

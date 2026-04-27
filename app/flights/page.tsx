@@ -12,7 +12,7 @@ import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Checkbox } from "@/components/ui/checkbox";
 import { cn } from "@/lib/utils";
-import { AppSidebar } from "@/components/AppSidebar";
+import { AppSidebar } from "@/components/appsidebar";
 
 /* ─── Tiny icon helpers (page-local only) ────────────────── */
 const Ic = {

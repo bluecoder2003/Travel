@@ -4,8 +4,8 @@ import { useState, useRef, useEffect } from "react";
 import dynamic from "next/dynamic";
 import Image from "next/image";
 import { cn } from "@/lib/utils";
-import { AppSidebar } from "@/components/AppSidebar";
-import ChipInputBar from "@/components/ChipInputBar";
+import { AppSidebar } from "@/components/appsidebar";
+import ChipInputBar from "@/components/chipinputbar";
 import {
   AirplaneTilt,
   Buildings,
@@ -46,7 +46,7 @@ import {
   Swap,
 } from "@phosphor-icons/react";
 
-const TripMap = dynamic(() => import("@/components/TripMap"), { ssr: false, loading: () => <div className="w-full h-full bg-[#f5f5f0] animate-pulse" /> });
+const TripMap = dynamic(() => import("@/components/tripmap"), { ssr: false, loading: () => <div className="w-full h-full bg-[#f5f5f0] animate-pulse" /> });
 
 /* ── Types ─────────────────────────────────────────────── */
 type Stage = "idle" | "q1" | "q2" | "planning" | "results";
