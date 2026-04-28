@@ -45,6 +45,9 @@ import {
   CalendarCheck,
   SkipForward,
   Swap,
+  ClockCounterClockwise,
+  ArrowUUpLeft,
+  FloppyDisk,
 } from "@phosphor-icons/react";
 
 const TripMap = dynamic(() => import("@/components/tripmap"), { ssr: false, loading: () => <div className="w-full h-full bg-[#f5f5f0] animate-pulse" /> });
@@ -59,6 +62,18 @@ interface QDef { id: string; question: string; options: QOption[]; multi?: boole
 interface SummaryPair { q: string; a: string }
 type SwapKind = "stay" | "activity";
 type CardSet = "savings" | "cafes" | "adventure" | "pace";
+interface Version {
+  id: string;
+  n: number;
+  label: string;          // e.g. "Initial plan", "Hotel swap"
+  ts: number;             // Date.now()
+  destination: string;
+  daysCount: number;
+  stopsCount: number;
+  budget: string;
+  changes: string[];      // delta chips ("+ Alaya Resort", "− Catamaran cruise")
+  snapshot: { days: DayPlan[]; chipCtx: ChipCtx | null };
+}
 interface Msg {
   id: string;
   kind: "user-init" | "ai" | "summary" | "planning-done" | "breakdown" | "swap" | "cards" | "save-trip" | "flights" | "multi-stay";
@@ -1291,7 +1306,7 @@ function ConflictResolver() {
 
 /* ── Plan result view ────────────────────────────────────── */
 function PlanResultView({
-  onSelectDay, selectedDay, planUpdating, days, setDays, onSwapHighlight,
+  onSelectDay, selectedDay, planUpdating, days, setDays, onSwapHighlight, onLogChange,
 }: {
   onSelectDay: (day: number) => void;
   selectedDay: number;
@@ -1299,6 +1314,7 @@ function PlanResultView({
   days: DayPlan[];
   setDays: React.Dispatch<React.SetStateAction<DayPlan[]>>;
   onSwapHighlight: (day: number, activityName?: string) => void;
+  onLogChange: (label: string, change: string) => void;
 }) {
   const [customizingDayId, setCustomizingDayId] = useState<number | null>(null);
   const [swapSegment, setSwapSegment] = useState<SegmentId | null>(null);
@@ -1313,12 +1329,27 @@ function PlanResultView({
   useEffect(() => { if (planUpdating) setShowChangeWarning(true); }, [planUpdating]);
 
   function handleSwap(dayIdx: number, slotIdx: number, newActivity: string) {
+    let prevName = "";
     setDays(prev => prev.map((d, i) =>
       i === dayIdx
-        ? { ...d, activities: d.activities.map((a, j) => j === slotIdx ? { ...a, name: newActivity } : a) }
+        ? { ...d, activities: d.activities.map((a, j) => {
+            if (j === slotIdx) { prevName = a.name; return { ...a, name: newActivity }; }
+            return a;
+          }) }
         : d
     ));
     onSwapHighlight(dayIdx + 1, newActivity);
+    onLogChange(`Day ${dayIdx + 1} activity swap`, `${prevName || "Activity"} → ${newActivity}`);
+  }
+
+  function handleAdd(dayIdx: number, activity: { time: string; name: string; type: ActivityType }) {
+    setDays(prev => prev.map((d, i) =>
+      i === dayIdx
+        ? { ...d, activities: [...d.activities, activity].sort((a, b) => a.time.localeCompare(b.time)) }
+        : d
+    ));
+    onSwapHighlight(dayIdx + 1, activity.name);
+    onLogChange(`Day ${dayIdx + 1} activity added`, `+ ${activity.name}`);
   }
 
   function handleSegmentSwap(label: string, price: string) {
@@ -1472,6 +1503,7 @@ function PlanResultView({
               <ActivitiesCustomizer
                 day={activeDay}
                 onSwap={handleSwap}
+                onAdd={handleAdd}
                 onClose={() => setCustomizingDayId(null)}
               />
             </div>
@@ -1983,11 +2015,12 @@ function downloadTripPDF(days: DayPlan[], chipCtx: ChipCtx | null) {
 
 /* ── Save-trip card ─────────────────────────────────────── */
 function SaveTripCard({
-  days, chipCtx, isUpdate = false,
+  days, chipCtx, isUpdate = false, onSave,
 }: {
   days: DayPlan[];
   chipCtx: ChipCtx | null;
   isUpdate?: boolean;
+  onSave?: () => void;
 }) {
   const [saved, setSaved] = useState(false);
   const dest = chipCtx?.destination || "Bali, Indonesia";
@@ -2040,7 +2073,7 @@ function SaveTripCard({
       {/* Actions */}
       <div className="flex gap-2 px-4 py-3 border-t border-ct-border-light">
         <button
-          onClick={() => setSaved(true)}
+          onClick={() => { if (!saved) { setSaved(true); onSave?.(); } }}
           className={cn(
             "flex-1 flex items-center justify-center gap-2 text-[12px] font-semibold rounded-xl py-2.5 border transition-all",
             saved
@@ -2101,7 +2134,7 @@ function SwapCard({ opt, picked, onPick }: { opt: SwapOption; picked: boolean; o
       onMouseLeave={() => setHover(false)}
       className={cn(
         "shrink-0 w-[200px] rounded-xl overflow-hidden border bg-white transition-all",
-        picked ? "border-[#FF4F17] shadow-md" : "border-ct-border hover:border-[#FF4F17]/60 hover:shadow-md",
+        picked ? "border-[#FF4F17]" : "border-ct-border hover:border-[#FF4F17]/60",
       )}
     >
       <div className="relative w-full aspect-[4/3] bg-ct-surface-deep overflow-hidden">
@@ -2503,27 +2536,73 @@ const RECENT_TRIPS = [
   { title: "Europe Summer", dates: "2 – 12 Aug · 11 days", img: "https://picsum.photos/seed/europe-sum/80/60" },
 ];
 
-/* ── Chat list panel ────────────────────────────────────── */
-function ChatListPanel({ onNew, onClose }: { onNew: () => void; onClose: () => void }) {
-  const [tab, setTab] = useState<"all" | "trips">("all");
-  const [search, setSearch] = useState("");
+/* ── Relative time helper ─────────────────────────────────── */
+function fmtRelTime(ts: number) {
+  const diff = Math.max(0, Date.now() - ts);
+  const s = Math.floor(diff / 1000);
+  if (s < 10) return "just now";
+  if (s < 60) return `${s}s ago`;
+  const m = Math.floor(s / 60);
+  if (m < 60) return `${m}m ago`;
+  const h = Math.floor(m / 60);
+  if (h < 24) return `${h}h ago`;
+  const d = Math.floor(h / 24);
+  return `${d}d ago`;
+}
+function fmtClock(ts: number) {
+  return new Date(ts).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+}
+
+/* ── Version history panel ────────────────────────────────── */
+function VersionHistoryPanel({
+  versions, currentVersionId, hasActiveChat, lastChangeNote, unsavedChanges, chipCtx, days,
+  onRestore, onNew, onClose,
+}: {
+  versions: Version[];
+  currentVersionId: string | null;
+  hasActiveChat: boolean;
+  lastChangeNote: string;
+  unsavedChanges: string[];
+  chipCtx: ChipCtx | null;
+  days: DayPlan[];
+  onRestore: (id: string) => void;
+  onNew: () => void;
+  onClose: () => void;
+}) {
+  const [tab, setTab] = useState<"versions" | "trips">("versions");
+  const [, force] = useState(0);
+  // Refresh relative timestamps every 30s
+  useEffect(() => {
+    const t = setInterval(() => force(n => n + 1), 30_000);
+    return () => clearInterval(t);
+  }, []);
+
+  const latestId = versions.length ? versions[versions.length - 1].id : null;
+  const isLiveCurrent = currentVersionId === null || currentVersionId === latestId;
+  const totalStops = days.reduce((s, d) => s + d.activities.length, 0);
+  const dest = chipCtx?.destination || "Bali, Indonesia";
+  const ordered = [...versions].reverse();
 
   return (
     <div className="w-[272px] shrink-0 flex flex-col bg-white border-r border-ct-border">
       {/* Header */}
       <div className="flex items-center justify-between px-4 py-3 border-b border-ct-border-light">
-        <div className="flex items-center gap-2">
-          <ChatCircle size={18} weight="fill" className="text-[#1a1a1a]" />
-          <span className="text-[15px] font-bold text-[#1a1a1a]">Chats</span>
-          <span className="text-[11px] font-bold bg-ct-surface-deep text-ct-action-icon rounded-full px-2 py-0.5">2</span>
+        <div className="flex items-center gap-2 min-w-0">
+          <ClockCounterClockwise size={17} weight="bold" className="text-[#1a1a1a] shrink-0" />
+          <span className="text-[15px] font-bold text-[#1a1a1a] truncate">Versions</span>
+          {versions.length > 0 && (
+            <span className="text-[11px] font-bold bg-ct-surface-deep text-ct-action-icon rounded-full px-2 py-0.5">
+              {versions.length}
+            </span>
+          )}
         </div>
-        <div className="flex items-center gap-1.5">
+        <div className="flex items-center gap-1">
           <button
             onClick={onNew}
-            className="flex items-center gap-1.5 bg-ct-action text-white text-[12px] font-semibold px-3 py-1.5 rounded-full hover:bg-ct-action-hover transition-colors"
+            title="Start a new chat"
+            className="w-7 h-7 flex items-center justify-center rounded-full text-ct-text-subtle hover:bg-ct-surface-subtle hover:text-ct-text-secondary transition-colors"
           >
-            <Plus size={12} weight="bold" />
-            New Chat
+            <Plus size={13} weight="bold" />
           </button>
           <button
             onClick={onClose}
@@ -2534,51 +2613,192 @@ function ChatListPanel({ onNew, onClose }: { onNew: () => void; onClose: () => v
         </div>
       </div>
 
-      {/* Search */}
-      <div className="px-3 py-2.5 border-b border-ct-border-light">
-        <div className="flex items-center gap-2 bg-ct-surface-subtle rounded-xl px-3 py-2">
-          <MagnifyingGlass size={14} className="text-ct-text-subtle shrink-0" />
-          <input
-            value={search}
-            onChange={e => setSearch(e.target.value)}
-            placeholder="Search..."
-            className="flex-1 bg-transparent text-[13px] text-[#1a1a1a] placeholder:text-ct-text-placeholder outline-none"
-          />
-          <span className="text-[10px] text-ct-text-placeholder font-mono shrink-0">⌘1</span>
-        </div>
-      </div>
-
       {/* Tabs */}
-      <div className="flex px-3 pt-2.5 gap-4 border-b border-ct-border-light">
-        {(["all", "trips"] as const).map(t => (
+      <div className="flex px-4 pt-2.5 gap-5 border-b border-ct-border-light">
+        {(["versions", "trips"] as const).map(t => (
           <button
             key={t}
             onClick={() => setTab(t)}
             className={cn(
-              "pb-2.5 text-[13px] font-semibold capitalize border-b-2 transition-colors",
+              "pb-2.5 text-[12.5px] font-semibold capitalize border-b-2 transition-colors",
               tab === t ? "border-ct-border-strong text-ct-text-ui" : "border-transparent text-ct-text-subtle hover:text-ct-text-secondary",
             )}
           >
-            {t === "all" ? "All" : "Trips"}
+            {t === "versions" ? "This chat" : "Trips"}
           </button>
         ))}
       </div>
 
-      {/* All tab — empty state */}
-      {tab === "all" && (
-        <div className="flex-1 flex flex-col items-center justify-center gap-3 px-4 pb-8">
-          <div className="w-16 h-16 rounded-2xl bg-ct-surface-subtle flex items-center justify-center">
-            <ChatCircle size={32} className="text-[#ddd]" weight="fill" />
-          </div>
-          <p className="text-[13px] text-ct-text-subtle font-medium">No Chat History</p>
-          <button
-            onClick={onNew}
-            className="flex items-center gap-1.5 text-[12px] text-ct-text-secondary border border-ct-border px-4 py-2 rounded-full hover:bg-ct-surface-subtle transition-colors font-medium"
-          >
-            <Plus size={12} weight="bold" />
-            New Chat
-          </button>
-        </div>
+      {/* Versions tab */}
+      {tab === "versions" && (
+        <>
+          {!hasActiveChat ? (
+            <div className="flex-1 flex flex-col items-center justify-center gap-3 px-6 pb-10 text-center">
+              <div className="w-14 h-14 rounded-2xl bg-ct-surface-subtle flex items-center justify-center">
+                <ClockCounterClockwise size={26} className="text-ct-text-disabled" weight="bold" />
+              </div>
+              <p className="text-[13px] text-ct-text-secondary font-semibold">No chat yet</p>
+              <p className="text-[11.5px] text-ct-text-subtle leading-snug -mt-1.5">
+                Start planning a trip — saved versions of your plan will appear here.
+              </p>
+              <button
+                onClick={onNew}
+                className="flex items-center gap-1.5 text-[12px] text-ct-text-secondary border border-ct-border px-3.5 py-1.5 rounded-full hover:bg-ct-surface-subtle hover:border-ct-border-medium transition-colors font-medium mt-1"
+              >
+                <Plus size={12} weight="bold" />
+                New chat
+              </button>
+            </div>
+          ) : (
+            <div className="flex-1 overflow-y-auto px-3 py-3" style={{ scrollbarWidth: "thin" }}>
+              {/* Current state — always pinned at top */}
+              <p className="text-[10px] font-semibold text-ct-text-subtle uppercase tracking-wider px-1 mb-2">
+                Current
+              </p>
+              <div
+                className={cn(
+                  "relative rounded-xl border px-3 py-2.5 mb-3",
+                  isLiveCurrent
+                    ? "bg-ct-surface-raised border-ct-border"
+                    : "bg-white border-dashed border-ct-border-medium",
+                )}
+              >
+                <div className="flex items-center gap-2">
+                  <span className="relative flex w-2 h-2 shrink-0">
+                    <span className={cn(
+                      "absolute inline-flex w-full h-full rounded-full opacity-60 animate-ping",
+                      isLiveCurrent ? "bg-[#16a34a]" : "bg-ct-text-subtle",
+                    )} />
+                    <span className={cn(
+                      "relative inline-flex w-2 h-2 rounded-full",
+                      isLiveCurrent ? "bg-[#16a34a]" : "bg-ct-text-subtle",
+                    )} />
+                  </span>
+                  <p className="text-[12.5px] font-bold text-ct-text leading-none">
+                    {isLiveCurrent ? "Live state" : "Previewing past version"}
+                  </p>
+                </div>
+                <p className="text-[11.5px] text-ct-text-secondary mt-1.5 leading-snug truncate">
+                  {dest} · {days.length} days · {totalStops} stops
+                </p>
+                <p className="text-[10.5px] text-ct-text-muted mt-0.5">
+                  {isLiveCurrent
+                    ? unsavedChanges.length > 0
+                      ? `${unsavedChanges.length} unsaved edit${unsavedChanges.length === 1 ? "" : "s"} · ${lastChangeNote}`
+                      : versions.length === 0
+                        ? "Save your plan to capture the first version"
+                        : "All changes saved"
+                    : "Restore to make this the live state"}
+                </p>
+                {isLiveCurrent && unsavedChanges.length > 0 && (
+                  <div className="flex flex-wrap gap-1 mt-1.5">
+                    {unsavedChanges.slice(-3).map((c, i) => (
+                      <span
+                        key={i}
+                        className="text-[10px] text-ct-text-secondary bg-white border border-ct-border-light rounded-full px-1.5 py-0.5 leading-none truncate max-w-[210px]"
+                      >
+                        {c}
+                      </span>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {/* Saved versions list */}
+              {versions.length === 0 ? (
+                <div className="rounded-xl border border-dashed border-ct-border px-4 py-5 flex flex-col items-center text-center gap-1.5">
+                  <FloppyDisk size={18} className="text-ct-text-disabled" weight="bold" />
+                  <p className="text-[12px] font-semibold text-ct-text-secondary">No saved versions yet</p>
+                  <p className="text-[10.5px] text-ct-text-subtle leading-snug">
+                    Tap <span className="font-semibold text-ct-text-secondary">Save trip</span> in the chat to capture a snapshot you can return to.
+                  </p>
+                </div>
+              ) : (
+                <>
+                  <div className="flex items-center justify-between px-1 mb-2">
+                    <p className="text-[10px] font-semibold text-ct-text-subtle uppercase tracking-wider">
+                      Saved versions
+                    </p>
+                    <span className="text-[10px] text-ct-text-subtle">Newest first</span>
+                  </div>
+                  <ol className="relative space-y-1.5">
+                    {/* Vertical timeline rail */}
+                    <span className="absolute left-[15px] top-1.5 bottom-1.5 w-px bg-ct-border-light" aria-hidden />
+                    {ordered.map((v) => {
+                      const isActive = v.id === currentVersionId;
+                      const isLatest = v.id === latestId;
+                      return (
+                        <li key={v.id} className="relative group">
+                          <div
+                            className={cn(
+                              "relative rounded-xl border pl-9 pr-2.5 py-2.5 transition-all",
+                              isActive
+                                ? "bg-ct-surface-raised border-ct-border-strong"
+                                : "bg-white border-transparent hover:bg-ct-surface-subtle hover:border-ct-border-light",
+                            )}
+                          >
+                            {/* Timeline dot */}
+                            <span
+                              className={cn(
+                                "absolute left-2.5 top-3 w-[11px] h-[11px] rounded-full border-2 bg-white",
+                                isActive
+                                  ? "border-ct-border-strong"
+                                  : isLatest
+                                    ? "border-[#16a34a]"
+                                    : "border-ct-border-medium",
+                              )}
+                            />
+                            <div className="flex items-baseline justify-between gap-2">
+                              <p className="text-[12.5px] font-semibold text-ct-text leading-tight truncate">
+                                {v.label}
+                              </p>
+                              <span className="text-[10px] font-mono text-ct-text-subtle shrink-0">
+                                v{v.n}
+                              </span>
+                            </div>
+                            <p className="text-[11px] text-ct-text-muted mt-0.5 leading-snug truncate">
+                              {v.daysCount} days · {v.stopsCount} stops · {v.budget}
+                            </p>
+                            {v.changes.length > 0 && (
+                              <div className="flex flex-wrap gap-1 mt-1.5">
+                                {v.changes.slice(0, 2).map((c, i) => (
+                                  <span
+                                    key={i}
+                                    className="text-[10px] text-ct-text-secondary bg-ct-surface-deep rounded-full px-1.5 py-0.5 leading-none truncate max-w-[170px]"
+                                  >
+                                    {c}
+                                  </span>
+                                ))}
+                              </div>
+                            )}
+                            <div className="flex items-center justify-between mt-1.5">
+                              <span className="text-[10px] text-ct-text-subtle">
+                                {fmtClock(v.ts)} · {fmtRelTime(v.ts)}
+                              </span>
+                              {isActive ? (
+                                <span className="text-[9.5px] font-semibold uppercase tracking-wider text-ct-text-ui bg-ct-surface-deep rounded-full px-1.5 py-0.5">
+                                  Active
+                                </span>
+                              ) : (
+                                <button
+                                  onClick={() => onRestore(v.id)}
+                                  className="opacity-0 group-hover:opacity-100 focus:opacity-100 flex items-center gap-1 text-[10.5px] font-semibold text-ct-text-ui border border-ct-border rounded-full px-2 py-0.5 hover:bg-white hover:border-ct-border-medium transition-all"
+                                >
+                                  <ArrowUUpLeft size={10} weight="bold" />
+                                  Restore
+                                </button>
+                              )}
+                            </div>
+                          </div>
+                        </li>
+                      );
+                    })}
+                  </ol>
+                </>
+              )}
+            </div>
+          )}
+        </>
       )}
 
       {/* Trips tab */}
@@ -3740,7 +3960,7 @@ function MapPanel({
 function ChatArea({
   stage, msgs, isTyping, planStep, planUpdating, currentQ, qIdx, selected,
   onStart, onPick, onAnswer, onSkip, chipCtx, onChipChange, onNewChat, selectedDay, onSelectDay, endRef,
-  days, setDays, onSwapHighlight, onResultsMessage, onSwapApply, onCardApply,
+  days, setDays, onSwapHighlight, onResultsMessage, onSwapApply, onCardApply, onSaveTrip, onLogChange,
 }: {
   stage: Stage;
   msgs: Msg[];
@@ -3766,10 +3986,10 @@ function ChatArea({
   onResultsMessage: (txt: string) => void;
   onSwapApply: (kind: SwapKind, opt: SwapOption) => void;
   onCardApply: (set: CardSet, card: RichCard) => void;
+  onSaveTrip: () => void;
+  onLogChange: (label: string, change: string) => void;
 }) {
-  const [promptSet, setPromptSet] = useState(0);
   const showCard = (stage === "q1" || stage === "q2" || stage === "q3") && currentQ !== null;
-  const cards = PROMPT_CARD_SETS[promptSet];
 
   function sendFree(txt: string, chipState?: ChipCtx) {
     onStart(txt, chipState);
@@ -3797,46 +4017,170 @@ function ChatArea({
       </div>
 
       {/* Messages scroll area */}
-      <div className="flex-1 overflow-y-auto px-6 pb-6 pt-8" style={{ scrollbarWidth: "thin" }}>
+      <div className="flex-1 overflow-y-auto pb-6" style={{ scrollbarWidth: "thin" }}>
         {/* Idle / welcome state */}
         {stage === "idle" && (
-          <div className="max-w-[620px] mx-auto">
-            <div className="mb-7">
-              <h1 className="text-[26px] font-bold text-[#1a1a1a] leading-snug">
-                Hey there, <span className="text-[#1a1a1a]">Traveller</span>
-              </h1>
-              <p className="text-[20px] font-semibold text-[#1a1a1a] mt-0.5">Where would you like to go?</p>
-              <p className="text-[14px] text-ct-text-muted mt-2 leading-relaxed">
-                I&apos;m here to assist you in planning your experience. Ask me anything travel related.
-              </p>
+          <div>
+            {/* Hero banner with landscape background */}
+            <div className="relative w-full overflow-hidden">
+              {/* Background image */}
+              <div
+                aria-hidden
+                className="absolute inset-0 bg-cover bg-center"
+                style={{ backgroundImage: "url('/landscape.png')" }}
+              />
+              {/* Soft white wash on top for legibility */}
+              <div
+                aria-hidden
+                className="absolute inset-0 bg-white/35"
+              />
+              {/* Bottom gradient that blends banner into page background */}
+              <div
+                aria-hidden
+                className="absolute inset-x-0 bottom-0 h-40 bg-gradient-to-b from-transparent via-[#fafafa]/85 to-[#fafafa]"
+              />
+              {/* Subtle vignette on the left for text legibility */}
+              <div
+                aria-hidden
+                className="absolute inset-y-0 left-0 w-2/3 bg-gradient-to-r from-white/85 via-white/50 to-transparent"
+              />
+
+              {/* Hero content */}
+              <div className="relative max-w-[760px] mx-auto px-6 pt-12 pb-16">
+                <div className="inline-flex items-center gap-1.5 text-[10.5px] font-semibold tracking-[0.06em] uppercase text-ct-orange bg-white/85 backdrop-blur-sm rounded-full px-2.5 py-1 mb-4">
+                  <Sparkle size={10} weight="fill" />
+                  AI travel concierge
+                </div>
+                <h1 className="text-[30px] font-medium text-[#1a1a1a] leading-[1.1]">
+                  Hey there, <span className="bg-gradient-to-r from-ct-orange to-[#ff7a3d] bg-clip-text text-transparent">Traveller</span>
+                </h1>
+                {/* <p className="text-[20px] font-medium text-gray-700 mt-1">Where would you like to go?</p> */}
+                <p className="text-[13.5px] text-ct-text-secondary mt-4 leading-relaxed max-w-[460px]">
+                  Pick a starter below or describe your dream trip ~ <br/> I&apos;ll handle the flights, stays, days and budget.
+                </p>
+              </div>
             </div>
 
-            {/* Prompt suggestion cards */}
-            <div className="space-y-2.5 mb-5">
-              {cards.map((card, i) => (
-                <button
-                  key={i}
-                  onClick={() => sendFree(card.sub)}
-                  className="w-full flex items-start gap-3.5 p-4 bg-white border border-ct-border rounded-xl hover:border-[#1a1a1a]/20 transition-all text-left group"
-                >
-                  <div className="w-10 h-10 rounded-xl bg-ct-surface-subtle flex items-center justify-center shrink-0">
-                    <card.Icon size={20} className="text-ct-text-secondary" />
+            {/* Page body — pulled up to overlap the banner's gradient blend */}
+            <div className="max-w-[760px] mx-auto px-6 -mt-8 relative pb-2">
+
+            {/* Featured trip starters */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-6">
+              {/* Bali featured card */}
+              <button
+                onClick={() => sendFree(
+                  "Plan my Bali trip — 5 days, 2 travellers, mix of beaches, culture and food.",
+                  {
+                    destination: "Bali, Indonesia",
+                    dateMode: "exact",
+                    dates: { start: "", end: "" },
+                    quickPick: "Beach + Culture",
+                    adults: 2,
+                    children: 0,
+                    cabinClass: "Economy",
+                    budgetPreset: "mid",
+                    budgetRange: [40000, 80000],
+                  } as ChipCtx,
+                )}
+                className="group relative overflow-hidden rounded-2xl text-left bg-gradient-to-br from-ct-orange-light to-[#fff5ed] border border-ct-orange-border hover:border-ct-orange transition-all"
+              >
+                <div className="absolute -bottom-3 -right-3 w-[150px] h-[150px] opacity-95 pointer-events-none transition-transform duration-500 group-hover:scale-105 group-hover:rotate-1">
+                  <Image src="/car-polaroid.png" alt="" fill className="object-contain object-bottom-right" sizes="150px" />
+                </div>
+                <div className="relative px-4 pt-4 pb-5 min-h-[168px] flex flex-col">
+                  <div className="flex items-center gap-1.5 text-[10px] font-bold tracking-[0.06em] uppercase text-ct-orange mb-2">
+                    <span className="w-1.5 h-1.5 rounded-full bg-ct-orange animate-pulse" />
+                    Trending · 1.2k travellers
                   </div>
-                  <div className="min-w-0">
-                    <p className="text-[13px] font-semibold text-[#1a1a1a] group-hover:text-[#1a1a1a] transition-colors">{card.title}</p>
-                    <p className="text-[12px] text-ct-text-muted mt-0.5 leading-snug line-clamp-2">{card.sub}</p>
+                  <p className="text-[18px] font-bold text-[#1a1a1a] leading-tight max-w-[200px]">
+                    Plan my <br /> Bali trip
+                  </p>
+                  <p className="text-[11.5px] text-ct-text-secondary mt-1.5 max-w-[180px] leading-snug">
+                    5 days · 2 cities · beaches, ricefields, sunsets
+                  </p>
+                  <span className="mt-auto pt-3 inline-flex items-center gap-1 text-[12px] font-semibold text-ct-text">
+                    Start planning
+                    <ArrowRight size={12} weight="bold" className="transition-transform group-hover:translate-x-0.5" />
+                  </span>
+                </div>
+              </button>
+
+              {/* Random trip card */}
+              <button
+                onClick={() => {
+                  const picks: { destination: string; quickPick: string; budgetPreset: string; budgetRange: [number, number]; teaser: string }[] = [
+                    { destination: "Lisbon, Portugal",  quickPick: "Coastal & food", budgetPreset: "mid",    budgetRange: [60000, 110000], teaser: "miradouros, tiles and trams" },
+                    { destination: "Kyoto, Japan",      quickPick: "Culture & nature", budgetPreset: "mid",  budgetRange: [80000, 140000], teaser: "temples, tea and bamboo" },
+                    { destination: "Reykjavik, Iceland",quickPick: "Adventure",      budgetPreset: "luxury", budgetRange: [120000, 200000], teaser: "glaciers, geysers and aurora" },
+                    { destination: "Marrakech, Morocco",quickPick: "Markets & desert", budgetPreset: "mid",  budgetRange: [45000, 90000],   teaser: "souks, riads and dunes" },
+                    { destination: "Queenstown, NZ",    quickPick: "Adventure",      budgetPreset: "luxury", budgetRange: [120000, 200000], teaser: "lakes, peaks and bungee" },
+                    { destination: "Cape Town, SA",     quickPick: "Coastal & wine", budgetPreset: "mid",   budgetRange: [70000, 120000],  teaser: "beaches, wineries and Table Mountain" },
+                  ];
+                  const pick = picks[Math.floor(Math.random() * picks.length)];
+                  sendFree(
+                    `Surprise me — let's plan a ${pick.destination.split(",")[0]} trip. Vibe: ${pick.quickPick}.`,
+                    {
+                      destination: pick.destination,
+                      dateMode: "exact",
+                      dates: { start: "", end: "" },
+                      quickPick: pick.quickPick,
+                      adults: 2,
+                      children: 0,
+                      cabinClass: "Economy",
+                      budgetPreset: pick.budgetPreset,
+                      budgetRange: pick.budgetRange,
+                    } as ChipCtx,
+                  );
+                }}
+                className="group relative overflow-hidden rounded-2xl text-left bg-gradient-to-br from-[#eef4ff] to-[#f6efff] border border-[#dbe5ff] hover:border-[#a8b8e8] transition-all"
+              >
+                <div className="absolute -bottom-2 -right-2 w-[150px] h-[150px] opacity-95 pointer-events-none transition-transform duration-500 group-hover:scale-105 group-hover:-rotate-1">
+                  <Image src="/car-travel.png" alt="" fill className="object-contain object-bottom-right" sizes="150px" />
+                </div>
+                <div className="relative px-4 pt-4 pb-5 min-h-[168px] flex flex-col">
+                  <div className="flex items-center gap-1.5 text-[10px] font-bold tracking-[0.06em] uppercase text-[#5b6db5] mb-2">
+                    <Sparkle size={10} weight="fill" />
+                    Feeling spontaneous?
                   </div>
-                </button>
-              ))}
+                  <p className="text-[18px] font-bold text-[#1a1a1a] leading-tight max-w-[210px]">
+                    Plan a <br /> random trip
+                  </p>
+                  <p className="text-[11.5px] text-ct-text-secondary mt-1.5 max-w-[200px] leading-snug">
+                    Let AI roll the dice on a destination, vibe and budget.
+                  </p>
+                  <span className="mt-auto pt-3 inline-flex items-center gap-1 text-[12px] font-semibold text-ct-text">
+                    Surprise me
+                    <ArrowRight size={12} weight="bold" className="transition-transform group-hover:translate-x-0.5" />
+                  </span>
+                </div>
+              </button>
             </div>
 
-            <button
-              onClick={() => setPromptSet(s => (s + 1) % PROMPT_CARD_SETS.length)}
-              className="flex items-center gap-2 text-[12px] text-ct-text-muted hover:text-ct-text-secondary transition-colors"
-            >
-              <ArrowsClockwise size={13} />
-              Refresh prompts
-            </button>
+            {/* Quick starter chips */}
+            <div className="rounded-2xl border border-ct-border-light bg-ct-surface-raised px-4 py-3.5 flex items-center gap-3">
+              <Image src="/planning.png" alt="" width={44} height={44} className="shrink-0 object-contain pointer-events-none select-none" />
+              <div className="min-w-0 flex-1">
+                <p className="text-[12px] font-bold text-ct-text leading-tight">Quick starters</p>
+                <div className="flex flex-wrap gap-1.5 mt-2">
+                  {[
+                    "Weekend escape from Mumbai",
+                    "Solo trip · under ₹50k",
+                    "Family vacation · 7 days",
+                    "Honeymoon · beach + spa",
+                    "First-time Europe · 10 days",
+                  ].map(label => (
+                    <button
+                      key={label}
+                      onClick={() => sendFree(label)}
+                      className="text-[11.5px] font-medium text-ct-text-secondary bg-white border border-ct-border rounded-full px-2.5 py-1 hover:border-ct-border-medium hover:bg-ct-surface-subtle transition-colors"
+                    >
+                      {label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+            </div>
           </div>
         )}
 
@@ -3873,6 +4217,7 @@ function ChatArea({
                     days={days}
                     setDays={setDays}
                     onSwapHighlight={onSwapHighlight}
+                    onLogChange={onLogChange}
                   />
                 </div>
               );
@@ -3920,7 +4265,7 @@ function ChatArea({
                 <div key={msg.id} className="flex gap-2.5">
                   <Spark />
                   <div className="flex-1 min-w-0">
-                    <SaveTripCard days={days} chipCtx={chipCtx} isUpdate={msg.text === "update"} />
+                    <SaveTripCard days={days} chipCtx={chipCtx} isUpdate={msg.text === "update"} onSave={onSaveTrip} />
                   </div>
                 </div>
               );
@@ -4104,6 +4449,58 @@ export default function AIPlanner() {
   const [changedActivityKey, setChangedActivityKey] = useState<string | undefined>(undefined);
   const pulseTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  /* ── Version history state ── */
+  const [versions, setVersions] = useState<Version[]>([]);
+  const [currentVersionId, setCurrentVersionId] = useState<string | null>(null);
+  const [pendingChange, setPendingChange] = useState<{ label: string; changes: string[] }>({
+    label: "Initial plan",
+    changes: [],
+  });
+
+  /* Accumulate changes between saves; latest label wins. Keeps last 4 chips. */
+  function logChange(label: string, change: string) {
+    setPendingChange(prev => ({
+      label,
+      changes: [...prev.changes, change].slice(-4),
+    }));
+  }
+
+  function handleSaveTrip() {
+    const id = `v-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+    const isInitial = versions.length === 0 && pendingChange.changes.length === 0;
+    const label = isInitial ? "Initial plan" : pendingChange.label;
+    const changes = isInitial ? [] : pendingChange.changes;
+    const snap: Version = {
+      id,
+      n: versions.length + 1,
+      label,
+      ts: Date.now(),
+      destination: chipCtx?.destination ?? "Bali, Indonesia",
+      daysCount: days.length,
+      stopsCount: days.reduce((s, d) => s + d.activities.length, 0),
+      budget: "₹63,094",
+      changes,
+      snapshot: {
+        days: JSON.parse(JSON.stringify(days)),
+        chipCtx: chipCtx ? JSON.parse(JSON.stringify(chipCtx)) : null,
+      },
+    };
+    setVersions(prev => [...prev, snap]);
+    setCurrentVersionId(id);
+    setPendingChange({ label: "Edited since last save", changes: [] });
+    setShowChatsPanel(true);
+  }
+
+  function handleRestoreVersion(id: string) {
+    const v = versions.find(x => x.id === id);
+    if (!v) return;
+    setDays(JSON.parse(JSON.stringify(v.snapshot.days)));
+    if (v.snapshot.chipCtx) setChipCtx(JSON.parse(JSON.stringify(v.snapshot.chipCtx)));
+    setCurrentVersionId(id);
+    setPendingChange({ label: `Restored "${v.label}"`, changes: [] });
+    showAI(`Restored "${v.label}" — your plan and map are now showing v${v.n}.`, 400);
+  }
+
   function triggerHighlight(day: number, activityKey?: string) {
     setSelectedDay(day);
     setPulseDay(day);
@@ -4123,6 +4520,10 @@ export default function AIPlanner() {
   }
 
   function applySwapToDays(kind: SwapKind, opt: SwapOption) {
+    logChange(
+      kind === "stay" ? "Hotel swap" : "Activity swap",
+      kind === "stay" ? `Stay → ${opt.name}` : `Activity → ${opt.name}`,
+    );
     if (kind === "stay") {
       // Replace any "Check-in at …" or "hotel" type activity in Day 1
       const dayNo = days[0]?.day ?? 1;
@@ -4226,6 +4627,13 @@ export default function AIPlanner() {
   }
 
   function applyCardToTrip(set: CardSet, card: RichCard) {
+    const labelMap: Record<CardSet, string> = {
+      savings: "Savings applied",
+      cafes: "Café added",
+      adventure: "Adventure added",
+      pace: "Pace adjusted",
+    };
+    logChange(labelMap[set], card.title + (card.badge ? ` · ${card.badge}` : ""));
     if (set === "savings") {
       showAI(`Applied — ${card.title}. ${card.badge ?? "Saved"}.`, 500);
       triggerHighlight(selectedDay);
@@ -4262,6 +4670,16 @@ export default function AIPlanner() {
   }
 
   function handleChipChange(updated: ChipCtx) {
+    if (stage === "results") {
+      const diffs: string[] = [];
+      if (chipCtx) {
+        if (updated.destination !== chipCtx.destination) diffs.push(`Destination → ${updated.destination}`);
+        if (updated.dates.start !== chipCtx.dates.start || updated.dates.end !== chipCtx.dates.end) diffs.push("Dates updated");
+        if (updated.adults !== chipCtx.adults || updated.children !== chipCtx.children) diffs.push(`Travellers → ${updated.adults + updated.children}`);
+        if (updated.budgetPreset !== chipCtx.budgetPreset) diffs.push(`Budget → ${updated.budgetPreset ?? "—"}`);
+      }
+      logChange("Trip details edited", diffs[0] ?? "Trip details edited");
+    }
     setChipCtx(updated);
     if (stage === "results") {
       if (updateTimer.current) clearTimeout(updateTimer.current);
@@ -4286,6 +4704,9 @@ export default function AIPlanner() {
     setDays(BALI_PLAN);
     setPulseDay(undefined);
     setChangedActivityKey(undefined);
+    setVersions([]);
+    setCurrentVersionId(null);
+    setPendingChange({ label: "Initial plan", changes: [] });
     if (planTimer.current) clearInterval(planTimer.current);
     if (updateTimer.current) clearTimeout(updateTimer.current);
     if (pulseTimer.current) clearTimeout(pulseTimer.current);
@@ -4295,7 +4716,18 @@ export default function AIPlanner() {
     <div className="h-screen flex overflow-hidden bg-white">
       <AppSidebar active="ai-planner" onToggleChats={() => setShowChatsPanel(p => !p)} showChats={showChatsPanel} />
       {showChatsPanel && (
-        <ChatListPanel onNew={() => { resetToIdle(); }} onClose={() => setShowChatsPanel(false)} />
+        <VersionHistoryPanel
+          versions={versions}
+          currentVersionId={currentVersionId}
+          hasActiveChat={stage !== "idle"}
+          lastChangeNote={pendingChange.label}
+          unsavedChanges={pendingChange.changes}
+          chipCtx={chipCtx}
+          days={days}
+          onRestore={handleRestoreVersion}
+          onNew={() => { resetToIdle(); }}
+          onClose={() => setShowChatsPanel(false)}
+        />
       )}
       <ChatArea
         stage={stage}
@@ -4322,6 +4754,8 @@ export default function AIPlanner() {
         onResultsMessage={handleResultsMessage}
         onSwapApply={applySwapToDays}
         onCardApply={applyCardToTrip}
+        onSaveTrip={handleSaveTrip}
+        onLogChange={logChange}
       />
       {stage === "results" ? (
         <MapPanel
