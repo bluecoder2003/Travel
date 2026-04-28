@@ -1064,10 +1064,41 @@ function ActSwapPanel({
   );
 }
 
+/* ── Add-activity preset palette ──────────────────────── */
+const ADD_PRESETS: { name: string; type: ActType; duration: string }[] = [
+  { name: "Sunset cocktails at a cliff bar", type: "sunset",  duration: "1.5h" },
+  { name: "Local cooking class",             type: "food",    duration: "3h"   },
+  { name: "Spa & flower bath ritual",        type: "spa",     duration: "2h"   },
+  { name: "Sunrise hike to a viewpoint",     type: "trek",    duration: "3h"   },
+  { name: "Traditional dance performance",   type: "dance",   duration: "1.5h" },
+  { name: "Café-hopping morning",            type: "food",    duration: "2h"   },
+  { name: "Beach time & swim",               type: "beach",   duration: "2h"   },
+  { name: "Artisan market browse",           type: "shopping",duration: "1.5h" },
+  { name: "Temple visit",                    type: "culture", duration: "1h"   },
+  { name: "Rice paddy walk",                 type: "walk",    duration: "1h"   },
+];
+
+/* Pick the next round time after the latest scheduled slot, e.g. "20:30". */
+function nextSlotTime(activities: ActivityLike[]): string {
+  let maxMin = 9 * 60; // default 09:00
+  for (const a of activities) {
+    const m = /(\d{1,2}):(\d{2})/.exec(a.time);
+    if (m) {
+      const t = parseInt(m[1], 10) * 60 + parseInt(m[2], 10);
+      if (t > maxMin) maxMin = t;
+    }
+  }
+  const next = Math.min(maxMin + 90, 22 * 60 + 30); // +1.5h, cap 22:30
+  const hh = String(Math.floor(next / 60)).padStart(2, "0");
+  const mm = String(next % 60).padStart(2, "0");
+  return `${hh}:${mm}`;
+}
+
 /* ── Top-level customizer (drop-in replacement) ───────── */
 export function ActivitiesCustomizer({
   day,
   onSwap,
+  onAdd,
   onClose,
 }: {
   day: {
@@ -1077,10 +1108,13 @@ export function ActivitiesCustomizer({
     alternatives: string[][];
   };
   onSwap: (dayIdx: number, slotIdx: number, newActivity: string) => void;
+  onAdd?: (dayIdx: number, activity: ActivityLike) => void;
   onClose: () => void;
 }) {
   const [expandedSlot, setExpandedSlot] = useState<number | null>(null);
   const [recentlySwapped, setRecentlySwapped] = useState<number | null>(null);
+  const [adding, setAdding] = useState(false);
+  const [justAdded, setJustAdded] = useState<string | null>(null);
 
   /* Build rich alts per slot from the existing string-list data */
   function altsForSlot(slot: number): ActivityAlt[] {
@@ -1094,6 +1128,18 @@ export function ActivitiesCustomizer({
     setRecentlySwapped(slot);
     setTimeout(() => setRecentlySwapped(null), 2400);
   }
+
+  function handleAddPick(p: { name: string; type: ActType; duration: string }) {
+    const time = nextSlotTime(day.activities);
+    onAdd?.(day.day - 1, { time, name: p.name, type: p.type });
+    setAdding(false);
+    setJustAdded(p.name);
+    setTimeout(() => setJustAdded(null), 2400);
+  }
+
+  // Filter presets to ones not already on the day
+  const existingNames = new Set(day.activities.map(a => a.name));
+  const availablePresets = ADD_PRESETS.filter(p => !existingNames.has(p.name));
 
   return (
     <div className="rounded-2xl border border-ct-border bg-ct-surface overflow-hidden">
@@ -1146,17 +1192,75 @@ export function ActivitiesCustomizer({
         ))}
       </div>
 
+      {/* Add-activity inline picker */}
+      {adding && (
+        <div className="px-3 pt-1 pb-3 border-t border-ct-border-light bg-ct-surface-raised animate-[ct-act-expand_240ms_cubic-bezier(0.4,0,0.2,1)]">
+          <div className="flex items-center justify-between px-1 pt-2 pb-2">
+            <p className="text-[10.5px] font-semibold tracking-[0.06em] uppercase text-ct-text-subtle">
+              Pick something to add
+            </p>
+            <button
+              onClick={() => setAdding(false)}
+              className="text-[10.5px] text-ct-text-muted hover:text-ct-text-secondary transition-colors"
+            >
+              Cancel
+            </button>
+          </div>
+          {availablePresets.length === 0 ? (
+            <p className="text-[11px] text-ct-text-muted px-1 py-2">
+              You&apos;ve already added every suggestion for this day. Try swapping an existing slot instead.
+            </p>
+          ) : (
+            <div className="grid grid-cols-2 gap-1.5">
+              {availablePresets.map(p => (
+                <button
+                  key={p.name}
+                  onClick={() => handleAddPick(p)}
+                  className="flex items-start gap-2 text-left rounded-xl border border-ct-border bg-ct-surface px-2.5 py-2 hover:border-ct-border-medium hover:bg-ct-surface-subtle transition-colors"
+                >
+                  <span className="w-6 h-6 rounded-lg bg-ct-surface-subtle flex items-center justify-center shrink-0 mt-0.5">
+                    {actIcon(p.type, 12)}
+                  </span>
+                  <span className="min-w-0 flex-1">
+                    <span className="block text-[11.5px] font-semibold text-ct-text leading-tight truncate">
+                      {p.name}
+                    </span>
+                    <span className="block text-[10px] text-ct-text-muted mt-0.5 flex items-center gap-1">
+                      <Clock size={9} /> {p.duration}
+                    </span>
+                  </span>
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
       {/* Footer actions */}
       <div className="flex items-center gap-2 px-4 py-3 border-t border-ct-border-light bg-ct-surface-raised">
         <button
-          className="inline-flex items-center gap-1.5 text-[11.5px] font-semibold text-ct-text-secondary border border-dashed border-ct-border-medium hover:border-ct-action hover:text-ct-text bg-ct-surface px-3 py-1.5 rounded-full transition-colors"
+          onClick={() => setAdding(v => !v)}
+          aria-expanded={adding}
+          className={cn(
+            "inline-flex items-center gap-1.5 text-[11.5px] font-semibold border border-dashed px-3 py-1.5 rounded-full transition-colors",
+            adding
+              ? "border-ct-action text-ct-text bg-ct-surface-subtle"
+              : "border-ct-border-medium text-ct-text-secondary bg-ct-surface hover:border-ct-action hover:text-ct-text",
+          )}
         >
-          <Plus size={11} weight="bold" />
-          Add an activity
+          <Plus size={11} weight="bold" className={cn("transition-transform", adding && "rotate-45")} />
+          {adding ? "Close" : "Add an activity"}
         </button>
-        <span className="ml-auto text-[10.5px] text-ct-text-muted">
-          Changes save automatically
-        </span>
+        {justAdded ? (
+          <span className="ml-auto text-[10.5px] font-semibold text-[#16a34a] flex items-center gap-1">
+            <Check size={10} weight="bold" />
+            Added “{justAdded.length > 24 ? justAdded.slice(0, 24) + "…" : justAdded}”
+          </span>
+        ) : (
+          <span className="ml-auto text-[10.5px] text-ct-text-muted">
+            Changes save automatically
+          </span>
+        )}
       </div>
     </div>
   );
