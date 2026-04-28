@@ -60,7 +60,7 @@ interface TravellerVote { travellerA: string; travellerB: string; options: strin
 interface QOption { label: string; arrow?: boolean }
 interface QDef { id: string; question: string; options: QOption[]; multi?: boolean; placeholder: string; pageOf: number }
 interface SummaryPair { q: string; a: string }
-type SwapKind = "stay" | "activity";
+type SwapKind = "stay" | "activity" | "cafes" | "savings";
 type CardSet = "savings" | "cafes" | "adventure" | "pace";
 interface Version {
   id: string;
@@ -2660,7 +2660,7 @@ function SaveTripCard({
 
 /* ── Swap-options carousel ─────────────────────────────── */
 interface SwapOption {
-  name: string; sub: string; desc: string; mentions: number; price: string; img: string; tag?: string;
+  name: string; sub: string; desc: string; mentions?: number; price: string; img: string; tag?: string;
 }
 
 const STAY_OPTIONS: SwapOption[] = [
@@ -2679,7 +2679,21 @@ const ACTIVITY_OPTIONS: SwapOption[] = [
   { name: "Spice plantation lunch", sub: "Tabanan · 2.5h", desc: "Walk through cardamom and pepper, then a Balinese thali.", mentions: 71, price: "₹1,200/pp", img: "https://picsum.photos/seed/act-spice/400/300" },
 ];
 
-function SwapCard({ opt, picked, onPick }: { opt: SwapOption; picked: boolean; onPick: () => void }) {
+const CAFE_SWAP_OPTIONS: SwapOption[] = [
+  { name: "Revolver Espresso", sub: "Seminyak · ★ 4.7", desc: "Saloon-style café known for the best flat white on the island.", price: "~₹450", img: "https://picsum.photos/seed/cafe-revolver/300/220" },
+  { name: "Yellow Flower Café", sub: "Ubud · ★ 4.8", desc: "Hilltop garden café with jungle views and a vegan brunch menu.", price: "~₹600", img: "https://picsum.photos/seed/cafe-yellow/300/220" },
+  { name: "Crate Café", sub: "Canggu · ★ 4.6", desc: "Surfer-favourite spot with huge portions and €2 coffees.", price: "~₹500", img: "https://picsum.photos/seed/cafe-crate/300/220" },
+  { name: "Kafe Batan Waru", sub: "Ubud · ★ 4.5", desc: "Heritage Indonesian recipes in a colonial-style courtyard.", price: "~₹900", img: "https://picsum.photos/seed/cafe-koral/300/220" },
+  { name: "The Shady Shack", sub: "Canggu · ★ 4.7", desc: "All-vegetarian café overlooking the rice fields.", price: "~₹550", img: "https://picsum.photos/seed/cafe-hideout/300/220" },
+];
+
+const SAVINGS_SWAP_OPTIONS: SwapOption[] = [
+  { name: "Switch to Alaya Resort Ubud", sub: "4★ · pool villa · 4 nights", desc: "Quiet rice-paddy retreat ten minutes from Ubud centre. Same breakfast inclusion.", price: "− ₹9,200", img: "https://picsum.photos/seed/save-hotel/300/220", tag: "Save ₹9,200" },
+  { name: "Switch to AirAsia I5-764", sub: "1 stop · 7h 20m · Outbound", desc: "Same-day arrival, one short layover at Kuala Lumpur.", price: "− ₹2,598", img: "https://picsum.photos/seed/save-flight/300/220", tag: "Save ₹2,598" },
+  { name: "Drop the catamaran cruise", sub: "Day 4 · 2h sunset", desc: "Replace with a free Jimbaran beach evening — same vibe, no ticket cost.", price: "− ₹2,400", img: "https://picsum.photos/seed/save-activity/300/220", tag: "Save ₹2,400" },
+];
+
+function SwapCard({ opt, picked, onPick, cta = "Add to trip", tagGreen = false }: { opt: SwapOption; picked: boolean; onPick: () => void; cta?: string; tagGreen?: boolean }) {
   const [hover, setHover] = useState(false);
   return (
     <div
@@ -2694,7 +2708,10 @@ function SwapCard({ opt, picked, onPick }: { opt: SwapOption; picked: boolean; o
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img src={opt.img} alt={opt.name} className="w-full h-full object-cover" loading="lazy" />
         {opt.tag && (
-          <span className="absolute top-2 left-2 bg-white/95 text-[9.5px] font-semibold text-[#1a1a1a] px-2 py-0.5 rounded-full shadow-sm">
+          <span className={cn(
+            "absolute top-2 left-2 text-[9.5px] font-semibold px-2 py-0.5 rounded-full shadow-sm",
+            tagGreen ? "bg-[#22c55e] text-white" : "bg-white/95 text-[#1a1a1a]",
+          )}>
             {opt.tag}
           </span>
         )}
@@ -2712,10 +2729,10 @@ function SwapCard({ opt, picked, onPick }: { opt: SwapOption; picked: boolean; o
             {picked ? (
               <>
                 <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
-                Added
+                Applied
               </>
             ) : (
-              <>+ Add to trip</>
+              <>+ {cta}</>
             )}
           </button>
         </div>
@@ -2730,20 +2747,29 @@ function SwapCard({ opt, picked, onPick }: { opt: SwapOption; picked: boolean; o
           {opt.sub}
         </p>
         <p className="text-[10.5px] text-ct-text-secondary mt-1.5 leading-snug line-clamp-2">{opt.desc}</p>
-        <div className="flex items-center gap-1 mt-2 pt-2 border-t border-ct-border-light">
-          <div className="flex -space-x-1">
-            {[0, 1, 2].map(i => (
-              <div key={i} className="w-3.5 h-3.5 rounded-full border border-white" style={{ background: ["#FF4F17", "#1a1a1a", "#22c55e"][i] }}/>
-            ))}
+        {opt.mentions != null && (
+          <div className="flex items-center gap-1 mt-2 pt-2 border-t border-ct-border-light">
+            <div className="flex -space-x-1">
+              {[0, 1, 2].map(i => (
+                <div key={i} className="w-3.5 h-3.5 rounded-full border border-white" style={{ background: ["#FF4F17", "#1a1a1a", "#22c55e"][i] }}/>
+              ))}
+            </div>
+            <p className="text-[9.5px] text-ct-text-muted ml-1">
+              <span className="font-semibold text-ct-text-secondary">{opt.mentions}</span> travellers recommend
+            </p>
           </div>
-          <p className="text-[9.5px] text-ct-text-muted ml-1">
-            <span className="font-semibold text-ct-text-secondary">{opt.mentions}</span> travellers recommend
-          </p>
-        </div>
+        )}
       </div>
     </div>
   );
 }
+
+const SWAP_CAROUSEL_CONFIG: Record<SwapKind, { opts: SwapOption[]; title: string; sub: string; cta: string; tagGreen: boolean }> = {
+  stay: { opts: STAY_OPTIONS, title: "Swap your stay", sub: "Tap any option to swap into your itinerary.", cta: "Add to trip", tagGreen: false },
+  activity: { opts: ACTIVITY_OPTIONS, title: "Customise your activities", sub: "Pick the experiences you'd like in — we'll rebuild the day plan.", cta: "Add to trip", tagGreen: false },
+  cafes: { opts: CAFE_SWAP_OPTIONS, title: "Top-rated cafés in Bali", sub: "Highest-rated spots travellers add to Bali itineraries.", cta: "Add stop", tagGreen: false },
+  savings: { opts: SAVINGS_SWAP_OPTIONS, title: "Three swaps that save you ₹14,200", sub: "Pick any to apply — your itinerary stays intact.", cta: "Apply", tagGreen: true },
+};
 
 function SwapCarousel({
   kind, onApply,
@@ -2751,8 +2777,8 @@ function SwapCarousel({
   kind: SwapKind;
   onApply: (opt: SwapOption) => void;
 }) {
-  const opts = kind === "stay" ? STAY_OPTIONS : ACTIVITY_OPTIONS;
-  const [picked, setPicked] = useState<string>(opts[0].name);
+  const cfg = SWAP_CAROUSEL_CONFIG[kind];
+  const [picked, setPicked] = useState<string | null>(null);
   const scrollerRef = useRef<HTMLDivElement>(null);
   function scroll(dir: 1 | -1) {
     scrollerRef.current?.scrollBy({ left: dir * 220, behavior: "smooth" });
@@ -2765,12 +2791,8 @@ function SwapCarousel({
     <div className="bg-white rounded-2xl p-3.5">
       <div className="flex items-center justify-between mb-2.5">
         <div>
-          <p className="text-[12.5px] font-bold text-[#1a1a1a]">
-            {kind === "stay" ? "Swap your stay" : "Customise your activities"}
-          </p>
-          <p className="text-[10.5px] text-ct-text-muted mt-0.5">
-            {kind === "stay" ? "Tap any option to swap into your itinerary." : "Pick the experiences you'd like in — we'll rebuild the day plan."}
-          </p>
+          <p className="text-[12.5px] font-bold text-[#1a1a1a]">{cfg.title}</p>
+          <p className="text-[10.5px] text-ct-text-muted mt-0.5">{cfg.sub}</p>
         </div>
         <div className="flex items-center gap-1 shrink-0">
           <button onClick={() => scroll(-1)} className="w-7 h-7 rounded-full border border-ct-border flex items-center justify-center hover:border-[#FF4F17] hover:text-[#FF4F17] text-ct-text-muted transition-colors">
@@ -2786,9 +2808,9 @@ function SwapCarousel({
         className="flex gap-2.5 overflow-x-auto pb-1 -mx-1 px-1 snap-x snap-mandatory"
         style={{ scrollbarWidth: "none" }}
       >
-        {opts.map(opt => (
+        {cfg.opts.map(opt => (
           <div key={opt.name} className="snap-start">
-            <SwapCard opt={opt} picked={picked === opt.name} onPick={() => handlePick(opt)} />
+            <SwapCard opt={opt} picked={picked === opt.name} onPick={() => handlePick(opt)} cta={cfg.cta} tagGreen={cfg.tagGreen} />
           </div>
         ))}
       </div>
@@ -4982,7 +5004,14 @@ function ChatArea({
                 <div key={msg.id} className="flex gap-2.5">
                   <SparkSlot show={isFirstInTurn} />
                   <div className="flex-1 min-w-0">
-                    <RichCards set={msg.cardSet!} onApply={card => onCardApply(msg.cardSet!, card)} />
+                    {(msg.cardSet === "cafes" || msg.cardSet === "savings") ? (
+                      <SwapCarousel
+                        kind={msg.cardSet}
+                        onApply={opt => onCardApply(msg.cardSet!, { img: opt.img, title: opt.name, sub: opt.sub, desc: opt.desc, price: opt.price, badge: opt.tag })}
+                      />
+                    ) : (
+                      <RichCards set={msg.cardSet!} onApply={card => onCardApply(msg.cardSet!, card)} />
+                    )}
                   </div>
                 </div>
               );
