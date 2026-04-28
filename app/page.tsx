@@ -76,7 +76,7 @@ interface Version {
 }
 interface Msg {
   id: string;
-  kind: "user-init" | "ai" | "summary" | "planning-done" | "breakdown" | "swap" | "cards" | "save-trip" | "flights" | "multi-stay";
+  kind: "user-init" | "ai" | "summary" | "planning-done" | "breakdown" | "swap" | "cards" | "save-trip" | "flights" | "multi-stay" | "version-saved";
   text?: string;
   pairs?: SummaryPair[];
   swapKind?: SwapKind;
@@ -1352,9 +1352,47 @@ function PlanResultView({
     onLogChange(`Day ${dayIdx + 1} activity added`, `+ ${activity.name}`);
   }
 
+  function handleRemove(dayIdx: number, slotIdx: number) {
+    let removedName = "";
+    setDays(prev => prev.map((d, i) => {
+      if (i !== dayIdx) return d;
+      removedName = d.activities[slotIdx]?.name ?? "Activity";
+      return { ...d, activities: d.activities.filter((_, j) => j !== slotIdx) };
+    }));
+    onLogChange(`Day ${dayIdx + 1} activity removed`, `− ${removedName}`);
+  }
+
+  function handleAddDay() {
+    const lastDay = days[days.length - 1];
+    const newDay: DayPlan = {
+      ...lastDay,
+      day: lastDay.day + 1,
+      activities: lastDay.activities.filter(a => a.type !== "flight"),
+    };
+    setDays(prev => [...prev, newDay]);
+    onLogChange("Day added", `Day ${newDay.day} added`);
+  }
+
+  function handleSkipDay() {
+    if (days.length <= 1) return;
+    const dayToRemove = days.find(d => d.day === selectedDay);
+    if (!dayToRemove) return;
+    setDays(prev => prev.filter(d => d.day !== selectedDay));
+    onLogChange("Day removed", `Day ${selectedDay} removed`);
+  }
+
   function handleSegmentSwap(label: string, price: string) {
-    if (swapSegment === "hotel") setPrices(p => ({ ...p, hotel: price }));
-    if (swapSegment === "flight-out") setPrices(p => ({ ...p, flights: `₹${(parseInt(price.replace(/[^0-9]/g, "")) + parseInt(prices.flights.replace(/[^0-9]/g, "")) / 2).toLocaleString()}` }));
+    if (swapSegment === "hotel") {
+      setPrices(p => ({ ...p, hotel: price }));
+      onLogChange("Hotel swap", `Hotel → ${label}`);
+    }
+    if (swapSegment === "flight-out") {
+      setPrices(p => ({ ...p, flights: `₹${(parseInt(price.replace(/[^0-9]/g, "")) + parseInt(prices.flights.replace(/[^0-9]/g, "")) / 2).toLocaleString()}` }));
+      onLogChange("Flight swap", `Outbound → ${label}`);
+    }
+    if (swapSegment === "flight-return") {
+      onLogChange("Flight swap", `Return → ${label}`);
+    }
     setSwapSegment(null);
   }
 
@@ -1387,7 +1425,6 @@ function PlanResultView({
         </div>
         <div className="flex items-center gap-2">
           <button className="text-[12px] font-semibold text-ct-text-secondary border border-ct-border px-3 py-1.5 rounded-full hover:bg-ct-surface-subtle transition-colors">Share</button>
-          <button className="text-[12px] font-semibold text-white bg-ct-action px-3 py-1.5 rounded-full hover:bg-ct-action-hover transition-colors">Save trip</button>
         </div>
       </div>
 
@@ -1483,17 +1520,29 @@ function PlanResultView({
               </button>
             </div>
             <div className="space-y-2.5">
-              {activeDay.activities.map((act, i) => (
-                <div key={i} className="flex items-center gap-3">
-                  <div className="w-8 h-8 rounded-xl bg-[#f5f5f5] flex items-center justify-center shrink-0">
-                    <ActivityIcon type={act.type} size={15} />
+              {activeDay.activities.map((act, i) => {
+                const dayIdx = days.findIndex(d => d.day === activeDay.day);
+                return (
+                  <div key={i} className="group flex items-center gap-3">
+                    <div className="w-8 h-8 rounded-xl bg-[#f5f5f5] flex items-center justify-center shrink-0">
+                      <ActivityIcon type={act.type} size={15} />
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <p className="text-[13px] font-semibold text-[#1a1a1a] leading-tight">{act.name}</p>
+                      <p className="text-[10.5px] text-ct-text-subtle mt-0.5">{act.time}</p>
+                    </div>
+                    {act.type !== "flight" && act.type !== "hotel" && (
+                      <button
+                        onClick={() => handleRemove(dayIdx, i)}
+                        className="opacity-0 group-hover:opacity-100 w-6 h-6 rounded-full bg-[#fee2e2] flex items-center justify-center shrink-0 transition-opacity hover:bg-[#fecaca]"
+                        title="Remove activity"
+                      >
+                        <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="#dc2626" strokeWidth="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                      </button>
+                    )}
                   </div>
-                  <div className="min-w-0 flex-1">
-                    <p className="text-[13px] font-semibold text-[#1a1a1a] leading-tight">{act.name}</p>
-                    <p className="text-[10.5px] text-ct-text-subtle mt-0.5">{act.time}</p>
-                  </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           </div>
 
@@ -1535,13 +1584,14 @@ function PlanResultView({
       {/* Action buttons */}
       <div className="flex gap-2 flex-wrap">
         {[
-          { label: "Full breakdown", Icon: ListBullets },
-          { label: "Add a day", Icon: Plus },
-          { label: "Change dates", Icon: CalendarBlank },
-          { label: "Skip a day", Icon: SkipForward },
-        ].map(({ label, Icon }) => (
+          { label: "Full breakdown", Icon: ListBullets, onClick: undefined },
+          { label: "Add a day", Icon: Plus, onClick: handleAddDay },
+          { label: "Change dates", Icon: CalendarBlank, onClick: undefined },
+          { label: "Skip a day", Icon: SkipForward, onClick: handleSkipDay },
+        ].map(({ label, Icon, onClick }) => (
           <button
             key={label}
+            onClick={onClick}
             className="flex items-center gap-1.5 text-[12px] font-semibold text-ct-text-secondary border border-ct-border px-3 py-1.5 rounded-full hover:bg-ct-surface-subtle hover:border-ct-border-medium transition-colors"
           >
             <Icon size={13} />
@@ -2013,16 +2063,61 @@ function downloadTripPDF(days: DayPlan[], chipCtx: ChipCtx | null) {
   win.document.close();
 }
 
+/* ── Save changes bar (shown after first save when edits exist) ── */
+function SaveChangesBar({ changes, onSave }: { changes: string[]; onSave: () => void }) {
+  const SHOW = 5;
+  const visible = changes.slice(-SHOW);
+  const overflow = changes.length - SHOW;
+  return (
+    <div className="mb-2 bg-white border border-ct-border rounded-2xl shadow-sm overflow-hidden">
+      <div className="flex items-start gap-3 px-4 py-2.5">
+        <div className="w-6 h-6 rounded-lg bg-ct-orange flex items-center justify-center shrink-0 mt-0.5">
+          <svg width="12" height="12" viewBox="0 0 256 256" fill="white">
+            <path d="M208,32H48A16,16,0,0,0,32,48V208a16,16,0,0,0,16,16H208a16,16,0,0,0,16-16V48A16,16,0,0,0,208,32ZM80,64h96a8,8,0,0,1,0,16H80a8,8,0,0,1,0-16Zm48,128-48-40h20V120h56v32h20Z"/>
+          </svg>
+        </div>
+        <div className="flex-1 min-w-0">
+          <p className="text-[12px] font-bold text-ct-text leading-tight">
+            {changes.length} unsaved change{changes.length !== 1 ? "s" : ""}
+          </p>
+          <div className="flex flex-wrap gap-1 mt-1.5">
+            {visible.map((c, i) => (
+              <span key={i} className="text-[10px] font-medium text-ct-text-muted bg-ct-surface-subtle rounded-full px-2 py-0.5 truncate max-w-[200px]">
+                {c}
+              </span>
+            ))}
+            {overflow > 0 && (
+              <span className="text-[10px] font-medium text-ct-text-subtle bg-ct-surface-subtle rounded-full px-2 py-0.5">
+                +{overflow} more
+              </span>
+            )}
+          </div>
+        </div>
+        <button
+          onClick={onSave}
+          className="shrink-0 flex items-center gap-1.5 text-[11.5px] font-semibold bg-ct-text text-white rounded-xl px-3 py-2 hover:bg-ct-action transition-colors mt-0.5"
+        >
+          <svg width="11" height="11" viewBox="0 0 256 256" fill="currentColor">
+            <path d="M208,32H48A16,16,0,0,0,32,48V208a16,16,0,0,0,16,16H208a16,16,0,0,0,16-16V48A16,16,0,0,0,208,32ZM80,64h96a8,8,0,0,1,0,16H80a8,8,0,0,1,0-16Zm48,128-48-40h20V120h56v32h20Z"/>
+          </svg>
+          Save version
+        </button>
+      </div>
+    </div>
+  );
+}
+
 /* ── Save-trip card ─────────────────────────────────────── */
 function SaveTripCard({
-  days, chipCtx, isUpdate = false, onSave,
+  days, chipCtx, isUpdate = false, initialSaved = false, onSave,
 }: {
   days: DayPlan[];
   chipCtx: ChipCtx | null;
   isUpdate?: boolean;
+  initialSaved?: boolean;
   onSave?: () => void;
 }) {
-  const [saved, setSaved] = useState(false);
+  const [saved, setSaved] = useState(initialSaved);
   const dest = chipCtx?.destination || "Bali, Indonesia";
   const dateStr = chipCtx?.dates.start
     ? `${fmtChipDate(chipCtx.dates.start)}${chipCtx.dates.end ? " – " + fmtChipDate(chipCtx.dates.end) : ""}`
@@ -2046,7 +2141,7 @@ function SaveTripCard({
           </div>
           <div>
             <p className="text-[12px] font-bold text-ct-text">
-              {isUpdate ? "Plan updated" : saved ? "Trip saved" : "Your plan is ready"}
+              {initialSaved ? "Version saved" : isUpdate ? "Plan updated" : saved ? "Trip saved" : "Your plan is ready"}
             </p>
             <p className="text-[10px] text-ct-text-muted mt-0.5">{dest} · {dateStr}</p>
           </div>
@@ -3961,6 +4056,7 @@ function ChatArea({
   stage, msgs, isTyping, planStep, planUpdating, currentQ, qIdx, selected,
   onStart, onPick, onAnswer, onSkip, chipCtx, onChipChange, onNewChat, selectedDay, onSelectDay, endRef,
   days, setDays, onSwapHighlight, onResultsMessage, onSwapApply, onCardApply, onSaveTrip, onLogChange,
+  hasSaved, unsavedChanges,
 }: {
   stage: Stage;
   msgs: Msg[];
@@ -3988,6 +4084,8 @@ function ChatArea({
   onCardApply: (set: CardSet, card: RichCard) => void;
   onSaveTrip: () => void;
   onLogChange: (label: string, change: string) => void;
+  hasSaved: boolean;
+  unsavedChanges: string[];
 }) {
   const showCard = (stage === "q1" || stage === "q2" || stage === "q3") && currentQ !== null;
 
@@ -4189,7 +4287,7 @@ function ChatArea({
           <div className="max-w-[620px] mx-auto space-y-5">
             {msgs.map(msg => {
               if (msg.kind === "user-init") return (
-                <div key={msg.id} className="flex justify-end">
+                <div key={msg.id} className="flex justify-end mt-10">
                   <div className="bg-ct-action text-white text-[14px] px-4 py-3 rounded-2xl rounded-tr-sm max-w-[80%] leading-relaxed shadow-sm">
                     {msg.text}
                   </div>
@@ -4249,7 +4347,7 @@ function ChatArea({
                 <div key={msg.id} className="flex gap-2.5">
                   <Spark />
                   <div className="flex-1 min-w-0">
-                    <FlightsBlock />
+                    <FlightsBlock onSwap={(leg, label) => onLogChange(`${leg} flight swap`, `${leg} → ${label}`)} />
                   </div>
                 </div>
               );
@@ -4265,10 +4363,11 @@ function ChatArea({
                 <div key={msg.id} className="flex gap-2.5">
                   <Spark />
                   <div className="flex-1 min-w-0">
-                    <SaveTripCard days={days} chipCtx={chipCtx} isUpdate={msg.text === "update"} onSave={onSaveTrip} />
+                    <SaveTripCard days={days} chipCtx={chipCtx} isUpdate={msg.text === "update"} initialSaved={msg.text === "version-saved"} onSave={onSaveTrip} />
                   </div>
                 </div>
               );
+              if (msg.kind === "version-saved") return null;
               return null;
             })}
 
@@ -4310,6 +4409,9 @@ function ChatArea({
 
         {stage === "results" && (
           <div className="space-y-1">
+            {hasSaved && unsavedChanges.length > 0 && (
+              <SaveChangesBar changes={unsavedChanges} onSave={onSaveTrip} />
+            )}
             <QuickReplies onPick={onResultsMessage} />
             <ResultsInput onSend={onResultsMessage} />
           </div>
@@ -4415,7 +4517,7 @@ export default function AIPlanner() {
     const newPair = { q: q.question, a: answer };
     const allPairs = [...summaryPairs, newPair];
     setSummaryPairs(allPairs);
-    setTimeout(() => addMsg({ kind: "summary", pairs: allPairs }), 80);
+    addMsg({ kind: "summary", pairs: [newPair] });
 
     /* After Q1 (vibe), store the answer so Q2 becomes contextual */
     if (q.id === "vibe") {
@@ -4457,15 +4559,16 @@ export default function AIPlanner() {
     changes: [],
   });
 
-  /* Accumulate changes between saves; latest label wins. Keeps last 4 chips. */
+  /* Accumulate changes between saves; latest label wins. */
   function logChange(label: string, change: string) {
     setPendingChange(prev => ({
       label,
-      changes: [...prev.changes, change].slice(-4),
+      changes: [...prev.changes, change],
     }));
   }
 
   function handleSaveTrip() {
+    const isUpdate = versions.length > 0;
     const id = `v-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
     const isInitial = versions.length === 0 && pendingChange.changes.length === 0;
     const label = isInitial ? "Initial plan" : pendingChange.label;
@@ -4489,6 +4592,9 @@ export default function AIPlanner() {
     setCurrentVersionId(id);
     setPendingChange({ label: "Edited since last save", changes: [] });
     setShowChatsPanel(true);
+    if (isUpdate) {
+      setTimeout(() => addMsg({ kind: "save-trip", text: "version-saved" }), 300);
+    }
   }
 
   function handleRestoreVersion(id: string) {
@@ -4558,7 +4664,9 @@ export default function AIPlanner() {
       }));
       triggerHighlight(selectedDay, newKey);
     }
-    setTimeout(() => addMsg({ kind: "save-trip", text: "update" }), 1600);
+    if (versions.length === 0) {
+      setTimeout(() => addMsg({ kind: "save-trip", text: "update" }), 1600);
+    }
   }
 
   function handleResultsMessage(txt: string) {
@@ -4634,10 +4742,15 @@ export default function AIPlanner() {
       pace: "Pace adjusted",
     };
     logChange(labelMap[set], card.title + (card.badge ? ` · ${card.badge}` : ""));
+    const addSaveTripMsg = () => {
+      if (versions.length === 0) {
+        setTimeout(() => addMsg({ kind: "save-trip", text: "update" }), 1800);
+      }
+    };
     if (set === "savings") {
       showAI(`Applied — ${card.title}. ${card.badge ?? "Saved"}.`, 500);
       triggerHighlight(selectedDay);
-      setTimeout(() => addMsg({ kind: "save-trip", text: "update" }), 1800);
+      addSaveTripMsg();
       return;
     }
     if (set === "adventure" || set === "cafes") {
@@ -4658,13 +4771,13 @@ export default function AIPlanner() {
       }));
       showAI(`Added "${card.title}" to Day ${selectedDay} — see the highlight on the map.`, 500);
       triggerHighlight(selectedDay, newKey);
-      setTimeout(() => addMsg({ kind: "save-trip", text: "update" }), 1800);
+      addSaveTripMsg();
       return;
     }
     if (set === "pace") {
       showAI(`Applied — ${card.title}. Days re-timed.`, 500);
       triggerHighlight(selectedDay);
-      setTimeout(() => addMsg({ kind: "save-trip", text: "update" }), 1800);
+      addSaveTripMsg();
       return;
     }
   }
@@ -4756,6 +4869,8 @@ export default function AIPlanner() {
         onCardApply={applyCardToTrip}
         onSaveTrip={handleSaveTrip}
         onLogChange={logChange}
+        hasSaved={versions.length > 0}
+        unsavedChanges={pendingChange.changes}
       />
       {stage === "results" ? (
         <MapPanel

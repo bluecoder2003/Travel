@@ -173,14 +173,20 @@ function AltFlightCard({
 
 /* ── One leg block: selected card + carousel of alts ──── */
 function FlightLeg({
-  leg, options,
+  leg, options, onSwap,
 }: {
   leg: "Outbound" | "Return";
   options: FlightOpt[];
+  onSwap?: (leg: "Outbound" | "Return", label: string) => void;
 }) {
   const [pickedId, setPickedId] = useState(options[0].id);
   const picked = options.find(o => o.id === pickedId)!;
   const alts   = options.filter(o => o.id !== pickedId);
+
+  function pick(opt: FlightOpt) {
+    setPickedId(opt.id);
+    onSwap?.(leg, `${opt.airline} ${opt.code} · ${opt.depart}–${opt.arrive}`);
+  }
 
   return (
     <div className="space-y-2.5">
@@ -199,7 +205,7 @@ function FlightLeg({
               key={opt.id}
               opt={opt}
               picked={false}
-              onPick={() => setPickedId(opt.id)}
+              onPick={() => pick(opt)}
             />
           ))}
         </div>
@@ -208,7 +214,7 @@ function FlightLeg({
   );
 }
 
-export function FlightsBlock() {
+export function FlightsBlock({ onSwap }: { onSwap?: (leg: "Outbound" | "Return", label: string) => void }) {
   return (
     <div className="bg-ct-surface border border-ct-border rounded-2xl p-3.5 shadow-[var(--shadow-ct-sm)] space-y-4">
       <div className="flex items-center justify-between">
@@ -223,9 +229,9 @@ export function FlightsBlock() {
         </span>
       </div>
 
-      <FlightLeg leg="Outbound" options={OUTBOUND} />
+      <FlightLeg leg="Outbound" options={OUTBOUND} onSwap={onSwap} />
       <div className="h-px bg-ct-border-light -mx-1" />
-      <FlightLeg leg="Return"   options={RETURN} />
+      <FlightLeg leg="Return"   options={RETURN}   onSwap={onSwap} />
     </div>
   );
 }
