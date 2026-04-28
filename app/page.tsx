@@ -175,6 +175,109 @@ const PACE_Q: QDef = {
   placeholder: "Something else…",
 };
 
+/* ── Random trip question set ───────────────────────────── */
+const RANDOM_ROUND1: QDef[] = [
+  {
+    id: "rand-dest-intent", pageOf: 3,
+    question: "Where are you headed?",
+    options: [
+      { label: "I have a destination in mind", arrow: true },
+      { label: "Help me pick somewhere" },
+    ],
+    placeholder: "Type a destination…",
+  },
+  {
+    id: "rand-vibe", pageOf: 3,
+    question: "What's the vibe you're going for?",
+    options: [
+      { label: "Nature & outdoors", arrow: true },
+      { label: "Food & culture" },
+      { label: "Sightseeing & history" },
+      { label: "Mix of everything" },
+    ],
+    placeholder: "Something else…",
+  },
+  {
+    id: "rand-group", pageOf: 3,
+    question: "Who's coming along?",
+    options: [
+      { label: "Just me" },
+      { label: "Partner/friend" },
+      { label: "Family with kids" },
+      { label: "Group of friends" },
+    ],
+    placeholder: "Something else…",
+  },
+];
+
+const RANDOM_R2_DEST_KNOWN: QDef = {
+  id: "rand-region", pageOf: 2,
+  question: "Where are you headed?",
+  options: [
+    { label: "Kolkata & nearby", arrow: true },
+    { label: "Somewhere else in India" },
+    { label: "International destination" },
+  ],
+  placeholder: "Type a city or region…",
+};
+
+const RANDOM_R2_DEST_HELP: QDef = {
+  id: "rand-region", pageOf: 2,
+  question: "What kind of place excites you?",
+  options: [
+    { label: "Mountains & hill stations" },
+    { label: "Beaches & coastal towns" },
+    { label: "Historical cities & forts" },
+    { label: "Forests & wildlife sanctuaries" },
+  ],
+  placeholder: "Something else…",
+};
+
+const RANDOM_R2_ACTIVITY_NATURE: QDef = {
+  id: "rand-activity", pageOf: 2,
+  question: "How active do you want to be?",
+  options: [
+    { label: "Leisurely (scenic drives, cafes, viewpoints)" },
+    { label: "Moderately active (light hikes, walks)" },
+    { label: "Very active (full day trekking)" },
+  ],
+  placeholder: "Something else…",
+};
+
+const RANDOM_R2_ACTIVITY_FOOD: QDef = {
+  id: "rand-activity", pageOf: 2,
+  question: "How adventurous is your palate?",
+  options: [
+    { label: "Safe choices — familiar flavours" },
+    { label: "Mix of local and familiar" },
+    { label: "Full local dive — anything goes!" },
+  ],
+  placeholder: "Something else…",
+};
+
+const RANDOM_R2_ACTIVITY_SIGHT: QDef = {
+  id: "rand-activity", pageOf: 2,
+  question: "How do you like to explore?",
+  options: [
+    { label: "Self-guided at my own pace" },
+    { label: "Guided tours for context" },
+    { label: "Mix of both" },
+  ],
+  placeholder: "Something else…",
+};
+
+const RANDOM_R2_ACTIVITY_MIX: QDef = {
+  id: "rand-activity", pageOf: 2,
+  question: "How long are you thinking?",
+  options: [
+    { label: "Weekend (2–3 days)" },
+    { label: "Short trip (4–5 days)" },
+    { label: "Full week (6–7 days)" },
+    { label: "Extended (8+ days)" },
+  ],
+  placeholder: "Something else…",
+};
+
 const AI_ACKS = [
   "I love it! A few quick questions to personalise your trip:",
   "Great choice! And one more —",
@@ -1376,7 +1479,7 @@ function ConflictResolver() {
 
 /* ── Plan result view ────────────────────────────────────── */
 function PlanResultView({
-  onSelectDay, selectedDay, planUpdating, days, setDays, onSwapHighlight, onLogChange,
+  onSelectDay, selectedDay, planUpdating, days, setDays, onSwapHighlight, onLogChange, destination,
 }: {
   onSelectDay: (day: number) => void;
   selectedDay: number;
@@ -1385,6 +1488,7 @@ function PlanResultView({
   setDays: React.Dispatch<React.SetStateAction<DayPlan[]>>;
   onSwapHighlight: (day: number, activityName?: string) => void;
   onLogChange: (label: string, change: string) => void;
+  destination?: string;
 }) {
   const [customizingDayId, setCustomizingDayId] = useState<number | null>(null);
   const [swapSegment, setSwapSegment] = useState<SegmentId | null>(null);
@@ -1482,7 +1586,7 @@ function PlanResultView({
       {/* Header */}
       <div className={cn("flex items-center pt-4 justify-between transition-opacity duration-300", planUpdating && "opacity-50")}>
         <div>
-          <p className="text-[18px] font-bold text-[#1a1a1a]">Here&apos;s your Bali Itinerary</p>
+          <p className="text-[18px] font-bold text-[#1a1a1a]">Here&apos;s your {destination ? destination.split(",")[0] : "Bali"} Itinerary</p>
           <div className="flex items-center gap-2 mt-1">
             {/* <p className={cn("text-[13px] font-semibold", totalOver ? "text-[#ef4444]" : "text-ct-text-muted")}>
               {totalOver ? "₹90,496 · ₹10,496 over budget" : "₹72,896 · ₹7,104 under budget ✓"}
@@ -4566,7 +4670,7 @@ function MapPanel({
 /* ── Main chat area ─────────────────────────────────────── */
 function ChatArea({
   stage, msgs, isTyping, planStep, planUpdating, currentQ, qIdx, selected,
-  onStart, onPick, onAnswer, onSkip, chipCtx, onChipChange, onNewChat, selectedDay, onSelectDay, endRef,
+  onStart, onPick, onAnswer, onSkip, onRandomTrip, chipCtx, onChipChange, onNewChat, selectedDay, onSelectDay, endRef,
   days, setDays, onSwapHighlight, onResultsMessage, onSwapApply, onCardApply, onSaveTrip, onLogChange,
   hasSaved, unsavedChanges, regenPending, onRegenerate,
   onOpenMobileSidebar, onOpenMobileMap,
@@ -4583,6 +4687,7 @@ function ChatArea({
   onPick: (v: string) => void;
   onAnswer: (v: string) => void;
   onSkip: () => void;
+  onRandomTrip: () => void;
   chipCtx: ChipCtx | null;
   onChipChange: (updated: ChipCtx) => void;
   onNewChat: () => void;
@@ -4744,31 +4849,7 @@ function ChatArea({
 
               {/* Random trip card */}
               <button
-                onClick={() => {
-                  const picks: { destination: string; quickPick: string; budgetPreset: string; budgetRange: [number, number]; teaser: string }[] = [
-                    { destination: "Lisbon, Portugal",  quickPick: "Coastal & food", budgetPreset: "mid",    budgetRange: [60000, 110000], teaser: "miradouros, tiles and trams" },
-                    { destination: "Kyoto, Japan",      quickPick: "Culture & nature", budgetPreset: "mid",  budgetRange: [80000, 140000], teaser: "temples, tea and bamboo" },
-                    { destination: "Reykjavik, Iceland",quickPick: "Adventure",      budgetPreset: "luxury", budgetRange: [120000, 200000], teaser: "glaciers, geysers and aurora" },
-                    { destination: "Marrakech, Morocco",quickPick: "Markets & desert", budgetPreset: "mid",  budgetRange: [45000, 90000],   teaser: "souks, riads and dunes" },
-                    { destination: "Queenstown, NZ",    quickPick: "Adventure",      budgetPreset: "luxury", budgetRange: [120000, 200000], teaser: "lakes, peaks and bungee" },
-                    { destination: "Cape Town, SA",     quickPick: "Coastal & wine", budgetPreset: "mid",   budgetRange: [70000, 120000],  teaser: "beaches, wineries and Table Mountain" },
-                  ];
-                  const pick = picks[Math.floor(Math.random() * picks.length)];
-                  sendFree(
-                    `Surprise me — let's plan a ${pick.destination.split(",")[0]} trip. Vibe: ${pick.quickPick}.`,
-                    {
-                      destination: pick.destination,
-                      dateMode: "exact",
-                      dates: { start: "", end: "" },
-                      quickPick: pick.quickPick,
-                      adults: 2,
-                      children: 0,
-                      cabinClass: "Economy",
-                      budgetPreset: pick.budgetPreset,
-                      budgetRange: pick.budgetRange,
-                    } as ChipCtx,
-                  );
-                }}
+                onClick={onRandomTrip}
                 className="group relative overflow-hidden rounded-2xl text-left bg-gradient-to-br from-[#eef4ff] to-[#f6efff] border border-[#dbe5ff] hover:border-[#a8b8e8] transition-all"
               >
                 <div className="absolute -bottom-2 -right-2 w-[150px] h-[150px] opacity-95 pointer-events-none transition-transform duration-500 group-hover:scale-105 group-hover:-rotate-1">
@@ -4877,6 +4958,7 @@ function ChatArea({
                     setDays={setDays}
                     onSwapHighlight={onSwapHighlight}
                     onLogChange={onLogChange}
+                    destination={chipCtx?.destination ?? ""}
                   />
                 </div>
               );
@@ -5021,14 +5103,30 @@ export default function AIPlanner() {
   const endRef = useRef<HTMLDivElement>(null);
   const planTimer = useRef<ReturnType<typeof setInterval> | null>(null);
 
-  /* Build the 3-question vibe flow dynamically */
-  function getVibeQS(): QDef[] {
+  /* Random trip flow state */
+  const [flowMode, setFlowMode] = useState<"bali" | "random">("bali");
+  const [randomRound, setRandomRound] = useState(1);
+  const [randomDestIntent, setRandomDestIntent] = useState("");
+
+  /* Build the active question set dynamically */
+  function getActiveQS(): QDef[] {
+    if (flowMode === "random") {
+      if (randomRound === 1) return RANDOM_ROUND1;
+      const destQ = randomDestIntent === "I have a destination in mind"
+        ? RANDOM_R2_DEST_KNOWN : RANDOM_R2_DEST_HELP;
+      const activityQ =
+        vibeAnswer === "Nature & outdoors"   ? RANDOM_R2_ACTIVITY_NATURE :
+        vibeAnswer === "Food & culture"       ? RANDOM_R2_ACTIVITY_FOOD :
+        vibeAnswer === "Sightseeing & history"? RANDOM_R2_ACTIVITY_SIGHT :
+        RANDOM_R2_ACTIVITY_MIX;
+      return [destQ, activityQ];
+    }
     const q2 = vibeAnswer ? (VIBE_FOLLOWUPS[vibeAnswer] ?? VIBE_FOLLOWUPS["Mix of everything"]) : null;
     return q2 ? [VIBE_Q, q2, PACE_Q] : [VIBE_Q];
   }
 
-  const vibeQS = getVibeQS();
-  const currentQ = vibeQS[qIdx] ?? null;
+  const activeQS = getActiveQS();
+  const currentQ = activeQS[qIdx] ?? null;
 
   useEffect(() => { endRef.current?.scrollIntoView({ behavior: "smooth" }); }, [msgs, isTyping, planStep]);
   useEffect(() => () => { if (planTimer.current) clearInterval(planTimer.current); }, []);
@@ -5040,6 +5138,20 @@ export default function AIPlanner() {
   function showAI(text: string, delay = 900) {
     setIsTyping(true);
     setTimeout(() => { setIsTyping(false); addMsg({ kind: "ai", text }); }, delay);
+  }
+
+  function startRandomTrip() {
+    setFlowMode("random");
+    setRandomRound(1);
+    setRandomDestIntent("");
+    setVibeAnswer("");
+    setQIdx(0);
+    setSelected([]);
+    setSummaryPairs([]);
+    setShowRightPanel(false);
+    addMsg({ kind: "user-init", text: "Plan a random trip — surprise me!" });
+    setStage("q1");
+    showAI("Let's build your perfect trip! A few quick questions to get started:", 900);
   }
 
   function startConversation(init: string, chipState?: ChipCtx) {
@@ -5090,13 +5202,81 @@ export default function AIPlanner() {
   }
 
   function handleAnswer(answer: string) {
-    const q = vibeQS[qIdx];
+    const q = activeQS[qIdx];
     const newPair = { q: q.question, a: answer };
     const allPairs = [...summaryPairs, newPair];
     setSummaryPairs(allPairs);
     addMsg({ kind: "summary", pairs: [newPair] });
 
-    /* After Q1 (vibe), store the answer so Q2 becomes contextual */
+    if (flowMode === "random") {
+      if (randomRound === 1) {
+        if (qIdx === 0) {
+          setRandomDestIntent(answer);
+          setSelected([]);
+          setQIdx(1);
+          setStage("q2");
+          showAI("Perfect! What kind of experience are you looking for?", 950);
+        } else if (qIdx === 1) {
+          setVibeAnswer(answer);
+          setSelected([]);
+          setQIdx(2);
+          setStage("q3");
+          showAI("Almost there! One last thing —", 950);
+        } else {
+          const soloLabel = answer === "Just me" ? "solo" : answer.toLowerCase();
+          const vibeLabel = (vibeAnswer || "mixed").toLowerCase();
+          setSelected([]);
+          setQIdx(0);
+          setRandomRound(2);
+          setStage("q1");
+          showAI(`Nice, a ${soloLabel} ${vibeLabel} trip — love it! A couple more things to nail down the plan:`, 950);
+        }
+      } else {
+        if (qIdx === 0) {
+          setSelected([]);
+          setQIdx(1);
+          setStage("q2");
+          showAI("Great choice! A few last details:", 950);
+        } else {
+          /* Determine destination from random flow answers */
+          const destMap: Record<string, string> = {
+            "Kolkata & nearby": "Darjeeling, India",
+            "Somewhere else in India": "Manali, India",
+            "International destination": "Kyoto, Japan",
+            "Mountains & hill stations": "Manali, India",
+            "Beaches & coastal towns": "Gokarna, India",
+            "Historical cities & forts": "Jaipur, India",
+            "Forests & wildlife sanctuaries": "Coorg, India",
+          };
+          const regionAns = summaryPairs.find(p => p.q.includes("Where are you headed") || p.q.includes("What kind of place"))?.a ?? "";
+          const resolvedDest = destMap[regionAns] || "Manali, India";
+
+          const vibeMap: Record<string, string> = {
+            "Nature & outdoors": "Nature & adventure",
+            "Food & culture": "Food & culture",
+            "Sightseeing & history": "Sightseeing",
+            "Mix of everything": "Mix of everything",
+          };
+
+          setChipCtx({
+            destination: resolvedDest,
+            dateMode: "exact",
+            dates: { start: "", end: "" },
+            quickPick: vibeMap[vibeAnswer] || "Mixed",
+            adults: 2,
+            children: 0,
+            cabinClass: "Economy",
+            budgetPreset: "mid",
+            budgetRange: [60000, 120000],
+          });
+
+          startPlanning(allPairs);
+        }
+      }
+      return;
+    }
+
+    /* Original Bali flow */
     if (q.id === "vibe") {
       setVibeAnswer(answer);
       setSelected([]);
@@ -5104,19 +5284,17 @@ export default function AIPlanner() {
       setStage("q2");
       showAI(AI_ACKS[1], 950);
     } else if (q.id === "vibe-detail") {
-      /* Q2 answered — ask Q3 */
       setSelected([]);
       setQIdx(2);
       setStage("q3");
       showAI(AI_ACKS[2], 950);
     } else {
-      /* Q3 answered — start planning */
       startPlanning(allPairs);
     }
   }
 
   function handlePick(val: string) {
-    const q = vibeQS[qIdx];
+    const q = activeQS[qIdx];
     if (q.multi) setSelected(prev => prev.includes(val) ? prev.filter(v => v !== val) : [...prev, val]);
     else setSelected([val]);
   }
@@ -5460,6 +5638,9 @@ export default function AIPlanner() {
     setCurrentVersionId(null);
     setPendingChange({ label: "Initial plan", changes: [] });
     setRegenPending(false);
+    setFlowMode("bali");
+    setRandomRound(1);
+    setRandomDestIntent("");
     if (planTimer.current) clearInterval(planTimer.current);
     if (updateTimer.current) clearTimeout(updateTimer.current);
     if (pulseTimer.current) clearTimeout(pulseTimer.current);
@@ -5510,6 +5691,7 @@ export default function AIPlanner() {
         onPick={handlePick}
         onAnswer={handleAnswer}
         onSkip={() => handleAnswer("Skipped")}
+        onRandomTrip={startRandomTrip}
         chipCtx={chipCtx}
         onChipChange={handleChipChange}
         onNewChat={resetToIdle}
