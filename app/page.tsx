@@ -6,6 +6,7 @@ import Image from "next/image";
 import { cn } from "@/lib/utils";
 import { AppSidebar } from "@/components/appsidebar";
 import ChipInputBar from "@/components/chipinputbar";
+import { FlightsBlock, MultiStayBlock, ActivitiesCustomizer } from "@/components/tripblocks";
 import {
   AirplaneTilt,
   Buildings,
@@ -60,7 +61,7 @@ type SwapKind = "stay" | "activity";
 type CardSet = "savings" | "cafes" | "adventure" | "pace";
 interface Msg {
   id: string;
-  kind: "user-init" | "ai" | "summary" | "planning-done" | "breakdown" | "swap" | "cards" | "save-trip";
+  kind: "user-init" | "ai" | "summary" | "planning-done" | "breakdown" | "swap" | "cards" | "save-trip" | "flights" | "multi-stay";
   text?: string;
   pairs?: SummaryPair[];
   swapKind?: SwapKind;
@@ -998,102 +999,6 @@ function StarRating({ rating }: { rating: number }) {
   );
 }
 
-/* ── Inline activity swap panel ─────────────────────────── */
-function InlineCustomizer({
-  day, onSwap, onClose,
-}: {
-  day: DayPlan;
-  onSwap: (dayIdx: number, slotIdx: number, newActivity: string) => void;
-  onClose: () => void;
-}) {
-  const [activeSlot, setActiveSlot] = useState(0);
-  const [swapped, setSwapped] = useState<string | null>(null);
-
-  function doSwap(alt: string) {
-    setSwapped(alt);
-    setTimeout(() => { onSwap(day.day - 1, activeSlot, alt); onClose(); }, 400);
-  }
-
-  const alts = day.alternatives[activeSlot % day.alternatives.length] ?? [];
-
-  return (
-    <div className="bg-[#fafafa] border border-[#efefef] rounded-2xl overflow-hidden">
-      {/* Header */}
-      <div className="flex items-center justify-between px-4 py-3 bg-white border-b border-[#f0f0f0]">
-        <p className="text-[12px] font-bold text-[#1a1a1a] uppercase tracking-wide">Customise activities</p>
-        <button onClick={onClose} className="w-6 h-6 flex items-center justify-center rounded-full hover:bg-[#f0f0f0] transition-colors text-ct-text-muted">
-          <X size={12} />
-        </button>
-      </div>
-
-      <div className="p-4 space-y-4">
-        {/* Step 1: pick which activity */}
-        <div>
-          <p className="text-[10px] font-semibold text-ct-text-subtle uppercase tracking-widest mb-2">1. Choose activity to replace</p>
-          <div className="grid grid-cols-1 gap-1.5">
-            {day.activities.map((act, i) => (
-              <button
-                key={i}
-                onClick={() => setActiveSlot(i)}
-                className={cn(
-                  "flex items-center gap-2.5 px-3 py-2.5 rounded-xl border text-left transition-all",
-                  activeSlot === i
-                    ? "border-[#1a1a1a] bg-white shadow-sm"
-                    : "border-[#e8e8e8] bg-white hover:border-[#ccc]"
-                )}
-              >
-                <div className={cn("w-7 h-7 rounded-lg flex items-center justify-center shrink-0 transition-colors", activeSlot === i ? "bg-[#1a1a1a]" : "bg-[#f2f2f2]")}>
-                  <span className={activeSlot === i ? "text-white" : "text-ct-text-muted"}><ActivityIcon type={act.type} size={13} /></span>
-                </div>
-                <div className="min-w-0 flex-1">
-                  <p className="text-[12px] font-semibold text-[#1a1a1a] truncate">{act.name}</p>
-                  <p className="text-[10px] text-ct-text-subtle">{act.time}</p>
-                </div>
-                <div className={cn("w-4 h-4 rounded-full border-2 shrink-0 flex items-center justify-center transition-colors",
-                  activeSlot === i ? "border-[#1a1a1a] bg-[#1a1a1a]" : "border-[#ddd]")}>
-                  {activeSlot === i && <svg width="7" height="7" viewBox="0 0 8 8" fill="none"><path d="M1.5 4L3.5 6L6.5 2" stroke="white" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>}
-                </div>
-              </button>
-            ))}
-          </div>
-        </div>
-
-        {/* Step 2: pick alternative */}
-        {alts.length > 0 && (
-          <div>
-            <p className="text-[10px] font-semibold text-ct-text-subtle uppercase tracking-widest mb-2">2. Swap with</p>
-            <div className="grid grid-cols-1 gap-1.5">
-              {alts.map((alt, i) => (
-                <button
-                  key={i}
-                  onClick={() => doSwap(alt)}
-                  className={cn(
-                    "flex items-center gap-2.5 px-3 py-2.5 rounded-xl border text-left transition-all group",
-                    swapped === alt
-                      ? "border-[#FF4F17] bg-[#fff5f2]"
-                      : "border-[#e8e8e8] bg-white hover:border-[#FF4F17]/40 hover:bg-[#fff9f7]"
-                  )}
-                >
-                  <div className={cn("w-7 h-7 rounded-lg flex items-center justify-center shrink-0 transition-colors",
-                    swapped === alt ? "bg-[#FF4F17]" : "bg-[#f2f2f2] group-hover:bg-[#ffece5]")}>
-                    <Compass size={13} className={swapped === alt ? "text-white" : "text-ct-text-muted group-hover:text-[#FF4F17]"} />
-                  </div>
-                  <span className={cn("text-[12px] font-medium flex-1 transition-colors",
-                    swapped === alt ? "text-[#FF4F17]" : "text-[#1a1a1a]")}>{alt}</span>
-                  {swapped === alt ? (
-                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#FF4F17" strokeWidth="2.5" strokeLinecap="round"><polyline points="20 6 9 17 4 12"/></svg>
-                  ) : (
-                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#ccc" strokeWidth="2" strokeLinecap="round" className="group-hover:stroke-[#FF4F17] transition-colors"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
-                  )}
-                </button>
-              ))}
-            </div>
-          </div>
-        )}
-      </div>
-    </div>
-  );
-}
 
 /* ── Segment swap panel ─────────────────────────────────── */
 type SegmentId = "flight-out" | "hotel" | "flight-return";
@@ -1463,7 +1368,7 @@ function PlanResultView({
             onClick={() => { onSelectDay(d.day); setCustomizingDayId(null); }}
             className={cn(
               "relative flex-none w-[190px] rounded-2xl overflow-hidden border transition-all text-left group shrink-0",
-              selectedDay === d.day ? "border-[#1a1a1a] shadow-sm" : "border-transparent hover:border-ct-border-medium",
+              selectedDay === d.day ? "border-gray-300" : "border-transparent hover:border-ct-border-medium",
             )}
           >
             <div className="relative w-full h-[100px] overflow-hidden bg-ct-surface-deep">
@@ -1564,7 +1469,7 @@ function PlanResultView({
           {/* Inline customizer — expands below activities */}
           {customizingDayId === activeDay.day && (
             <div className="px-4 py-3 border-b border-[#f5f5f5] bg-[#fafafa]">
-              <InlineCustomizer
+              <ActivitiesCustomizer
                 day={activeDay}
                 onSwap={handleSwap}
                 onClose={() => setCustomizingDayId(null)}
@@ -2453,11 +2358,12 @@ function RichCards({ set, onApply }: { set: CardSet; onApply: (card: RichCard) =
 
 /* ── Quick replies (suggestion chips above input) ─────── */
 const QUICK_REPLIES = [
+  "Show flights",
+  "Multi-stay hotels",
   "Make it cheaper",
   "Add more adventure",
   "Best cafes in Bali?",
   "Customise activities",
-  "Swap the stay",
   "Slower pace",
 ];
 
@@ -3940,7 +3846,7 @@ function ChatArea({
             {msgs.map(msg => {
               if (msg.kind === "user-init") return (
                 <div key={msg.id} className="flex justify-end">
-                  <div className="bg-ct-action-hover text-white text-[14px] px-4 py-3 rounded-2xl rounded-tr-sm max-w-[80%] leading-relaxed shadow-sm">
+                  <div className="bg-ct-action text-white text-[14px] px-4 py-3 rounded-2xl rounded-tr-sm max-w-[80%] leading-relaxed shadow-sm">
                     {msg.text}
                   </div>
                 </div>
@@ -3991,6 +3897,22 @@ function ChatArea({
                   <Spark />
                   <div className="flex-1 min-w-0">
                     <RichCards set={msg.cardSet!} onApply={card => onCardApply(msg.cardSet!, card)} />
+                  </div>
+                </div>
+              );
+              if (msg.kind === "flights") return (
+                <div key={msg.id} className="flex gap-2.5">
+                  <Spark />
+                  <div className="flex-1 min-w-0">
+                    <FlightsBlock />
+                  </div>
+                </div>
+              );
+              if (msg.kind === "multi-stay") return (
+                <div key={msg.id} className="flex gap-2.5">
+                  <Spark />
+                  <div className="flex-1 min-w-0">
+                    <MultiStayBlock />
                   </div>
                 </div>
               );
@@ -4123,13 +4045,20 @@ export default function AIPlanner() {
           setTimeout(() => {
             setStage("results");
             addMsg({ kind: "planning-done" });
-            showAI("Here's your plan! Here's the cost breakdown:", 600);
-            setTimeout(() => addMsg({ kind: "breakdown" }), 1500);
+            showAI("Here are your AI-picked flights — alternates below each leg. Tap any to swap it in.", 600);
+            setTimeout(() => addMsg({ kind: "flights" }), 1400);
+            setTimeout(() => addMsg({
+              kind: "ai",
+              text: "And your stays — split across two cities to match your day plan. Each leg can be swapped, split, or merged.",
+            }), 2400);
+            setTimeout(() => addMsg({ kind: "multi-stay" }), 3000);
+            setTimeout(() => addMsg({ kind: "ai", text: "Here's the full cost breakdown:" }), 4000);
+            setTimeout(() => addMsg({ kind: "breakdown" }), 4600);
             setTimeout(() => addMsg({
               kind: "ai",
               text: "Tap any day on the map to zoom in. Ask me to swap the stay, customise activities, or rebalance the budget anytime.",
-            }), 2200);
-            setTimeout(() => addMsg({ kind: "save-trip" }), 3000);
+            }), 5300);
+            setTimeout(() => addMsg({ kind: "save-trip" }), 6100);
           }, 700);
         }
       }, 850);
@@ -4235,11 +4164,23 @@ export default function AIPlanner() {
     if (!txt.trim()) return;
     addMsg({ kind: "user-init", text: txt });
     const lower = txt.toLowerCase();
+    const isFlights = /(flight|fly|airline|departure|return flight|outbound)/.test(lower);
+    const isMultiStay = /(multi.?stay|multiple hotel|split.*stay|two hotels|stays?$|hotels?$|change hotel|swap.*hotel|swap.*stay)/.test(lower);
     const isStay = /(stay|hotel|resort|accommodation|where i.?m staying)/.test(lower);
     const isActivity = /(activit|experience|things to do|customis|customiz|swap.*(?:activ|experien)|adventure)/.test(lower);
     const isCheaper = /(cheap|budget|save|reduce|lower)/.test(lower);
     const isBreakdown = /(breakdown|cost|total|how much)/.test(lower);
 
+    if (isFlights) {
+      showAI("Here are your flights — outbound and return are picked, with alternates below each. Tap any to swap it in.", 700);
+      setTimeout(() => addMsg({ kind: "flights" }), 1300);
+      return;
+    }
+    if (isMultiStay) {
+      showAI("Here's your multi-stay plan. Each leg can be swapped, split, or merged — your itinerary updates around it.", 700);
+      setTimeout(() => addMsg({ kind: "multi-stay" }), 1300);
+      return;
+    }
     if (isStay) {
       showAI("Here are top-rated stays for your dates — tap one to swap it in. Travellers' counts are from real Cleartrip reviews.", 700);
       setTimeout(() => addMsg({ kind: "swap", swapKind: "stay" }), 1300);
