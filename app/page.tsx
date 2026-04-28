@@ -77,12 +77,21 @@ interface Version {
 interface ChipDiff { label: string; from: string; to: string }
 interface Msg {
   id: string;
-  kind: "user-init" | "ai" | "summary" | "planning" | "planning-done" | "breakdown" | "swap" | "cards" | "save-trip" | "flights" | "multi-stay" | "trip-bundle" | "version-saved" | "regen-preview";
+  kind: "user-init" | "ai" | "summary" | "planning" | "planning-done" | "breakdown" | "swap" | "cards" | "save-trip" | "flights" | "multi-stay" | "trip-bundle" | "version-saved" | "regen-preview" | "system" | "regen-prompt";
   text?: string;
   pairs?: SummaryPair[];
   swapKind?: SwapKind;
   cardSet?: CardSet;
   chipDiffs?: ChipDiff[];
+}
+interface Traveller { id: string; name: string; initial: string; prefs: string[] }
+const TRAVELLER_N: Traveller = { id: "n", name: "You", initial: "N", prefs: ["Adventure", "Cultural"] };
+const TRAVELLER_A: Traveller = { id: "a", name: "Alex", initial: "A", prefs: ["Relaxed", "Scenic"] };
+type CollabLabel = "everyone" | "adventure" | "relaxed";
+function getCollabLabel(type: ActivityType): CollabLabel {
+  if (type === "hotel" || type === "spa" || type === "sunset") return "relaxed";
+  if (type === "trek" || type === "walk" || type === "nature" || type === "beach") return "adventure";
+  return "everyone";
 }
 interface ChipCtx {
   destination: string;
@@ -1478,8 +1487,22 @@ function ConflictResolver() {
 }
 
 /* ── Plan result view ────────────────────────────────────── */
+function CollabLabelPill({ label }: { label: CollabLabel }) {
+  const cfg: Record<CollabLabel, { text: string; cls: string }> = {
+    everyone: { text: "For everyone", cls: "bg-ct-surface-subtle text-ct-text-secondary border-ct-border-light" },
+    adventure: { text: "Adventure-focused (N)", cls: "bg-ct-action/10 text-ct-action border-ct-border" },
+    relaxed: { text: "Relaxed (A)", cls: "bg-ct-orange-light text-ct-orange border-ct-orange-border" },
+  };
+  const c = cfg[label];
+  return (
+    <span className={cn("inline-block text-[9.5px] font-semibold border px-1.5 py-0.5 rounded-full leading-none mt-1", c.cls)}>
+      {c.text}
+    </span>
+  );
+}
+
 function PlanResultView({
-  onSelectDay, selectedDay, planUpdating, days, setDays, onSwapHighlight, onLogChange, destination,
+  onSelectDay, selectedDay, planUpdating, days, setDays, onSwapHighlight, onLogChange, destination, collabActive,
 }: {
   onSelectDay: (day: number) => void;
   selectedDay: number;
@@ -1489,6 +1512,7 @@ function PlanResultView({
   onSwapHighlight: (day: number, activityName?: string) => void;
   onLogChange: (label: string, change: string) => void;
   destination?: string;
+  collabActive?: boolean;
 }) {
   const [customizingDayId, setCustomizingDayId] = useState<number | null>(null);
   const [swapSegment, setSwapSegment] = useState<SegmentId | null>(null);
@@ -1703,13 +1727,14 @@ function PlanResultView({
                 {activeDay.activities.map((act, i) => {
                   const dayIdx = days.findIndex(d => d.day === activeDay.day);
                   return (
-                    <div key={i} className="flex items-center gap-3">
+                    <div key={i} className="flex items-start gap-3">
                       <div className="w-8 h-8 rounded-xl bg-[#f5f5f5] flex items-center justify-center shrink-0">
                         <ActivityIcon type={act.type} size={15} />
                       </div>
                       <div className="min-w-0 flex-1">
                         <p className="text-[13px] font-semibold text-[#1a1a1a] leading-tight">{act.name}</p>
                         <p className="text-[10.5px] text-ct-text-subtle mt-0.5">{act.time}</p>
+                        {collabActive && <CollabLabelPill label={getCollabLabel(act.type)} />}
                       </div>
                     </div>
                   );
@@ -4689,6 +4714,71 @@ function MapPanel({
   );
 }
 
+/* ── Travellers pill (collab mode) ──────────────────────── */
+function TravellersPill({ travellers }: { travellers: Traveller[] }) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    function handler(e: MouseEvent) {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    }
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, []);
+  return (
+    <div ref={ref} className="relative">
+      <button
+        onClick={() => setOpen(o => !o)}
+        className="hidden sm:inline-flex items-center gap-2 text-[12px] font-semibold text-ct-text-secondary border border-ct-border pl-1 pr-3 py-1 rounded-full hover:bg-ct-surface-subtle transition-colors"
+      >
+        <span className="flex -space-x-1.5">
+          {travellers.map((t, i) => (
+            <span
+              key={t.id}
+              className={cn(
+                "w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold border-2 border-white",
+                i === 0 ? "bg-ct-action text-white" : "bg-ct-orange text-white",
+              )}
+            >
+              {t.initial}
+            </span>
+          ))}
+        </span>
+        <span>{travellers.length} travellers</span>
+      </button>
+      {open && (
+        <div className="absolute right-0 top-full mt-2 w-64 bg-white border border-ct-border rounded-2xl shadow-lg overflow-hidden z-50">
+          <div className="px-4 py-2.5 border-b border-ct-border-light">
+            <p className="text-[10.5px] font-semibold uppercase tracking-wider text-ct-text-subtle">Travellers & preferences</p>
+          </div>
+          <div className="px-4 py-3 space-y-3">
+            {travellers.map((t, i) => (
+              <div key={t.id} className="flex items-start gap-2.5">
+                <span className={cn(
+                  "w-7 h-7 rounded-full flex items-center justify-center text-[11px] font-bold shrink-0",
+                  i === 0 ? "bg-ct-action text-white" : "bg-ct-orange text-white",
+                )}>
+                  {t.initial}
+                </span>
+                <div className="min-w-0 flex-1">
+                  <p className="text-[12.5px] font-semibold text-[#1a1a1a]">{t.name}</p>
+                  <div className="flex flex-wrap gap-1 mt-1">
+                    {t.prefs.map(p => (
+                      <span key={p} className="text-[10.5px] font-medium bg-ct-surface-subtle text-ct-text-secondary border border-ct-border-light px-2 py-0.5 rounded-full">
+                        {p}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 /* ── Main chat area ─────────────────────────────────────── */
 function ChatArea({
   stage, msgs, isTyping, planStep, planUpdating, currentQ, qIdx, selected,
@@ -4696,6 +4786,7 @@ function ChatArea({
   days, setDays, onSwapHighlight, onResultsMessage, onSwapApply, onCardApply, onSaveTrip, onLogChange,
   hasSaved, unsavedChanges, regenPending, onRegenerate,
   onOpenMobileSidebar, onOpenMobileMap,
+  travellers, onInvite, prefsRegenPending, onRegenForPrefs, collabActive,
 }: {
   stage: Stage;
   msgs: Msg[];
@@ -4730,6 +4821,11 @@ function ChatArea({
   onRegenerate: () => void;
   onOpenMobileSidebar?: () => void;
   onOpenMobileMap?: () => void;
+  travellers: Traveller[];
+  onInvite: () => void;
+  prefsRegenPending: boolean;
+  onRegenForPrefs: () => void;
+  collabActive: boolean;
 }) {
   const showCard = (stage === "q1" || stage === "q2" || stage === "q3") && currentQ !== null;
 
@@ -4763,9 +4859,17 @@ function ChatArea({
               <MapPin size={15} />
             </button>
           )}
-          <button className="hidden sm:inline-flex text-[12px] font-semibold text-ct-text-secondary border border-ct-border px-3.5 py-1.5 rounded-full hover:bg-ct-surface-subtle transition-colors">
-            Invite
-          </button>
+          {stage !== "idle" && travellers.length >= 2 && (
+            <TravellersPill travellers={travellers} />
+          )}
+          {stage !== "idle" && travellers.length < 2 && (
+            <button
+              onClick={onInvite}
+              className="hidden sm:inline-flex text-[12px] font-semibold text-ct-text-secondary border border-ct-border px-3.5 py-1.5 rounded-full hover:bg-ct-surface-subtle transition-colors"
+            >
+              Invite
+            </button>
+          )}
           <button className="hidden md:flex items-center gap-1.5 text-[12px] font-semibold text-ct-text-secondary border border-ct-border px-3.5 py-1.5 rounded-full hover:bg-ct-surface-subtle transition-colors">
             <Globe size={13} className="text-ct-action-icon" />
             English
@@ -4962,6 +5066,29 @@ function ChatArea({
                 </div>
               );
               if (msg.kind === "summary") return <SummaryBubble key={msg.id} pairs={msg.pairs!} />;
+              if (msg.kind === "system") return (
+                <div key={msg.id} className="flex justify-center">
+                  <div className="text-[11.5px] text-ct-text-muted bg-ct-surface-subtle border border-ct-border-light rounded-full px-3 py-1.5 max-w-[85%] text-center leading-snug">
+                    {msg.text}
+                  </div>
+                </div>
+              );
+              if (msg.kind === "regen-prompt") return (
+                <div key={msg.id} className="flex gap-2.5">
+                  <SparkSlot show={isFirstInTurn} />
+                  <div className="flex-1 min-w-0 flex items-center justify-between gap-3 bg-white border border-ct-border rounded-xl px-4 py-3">
+                    <p className="text-[13px] text-[#1a1a1a] leading-snug">{msg.text || "Preferences updated — regenerate plan?"}</p>
+                    <button
+                      onClick={onRegenForPrefs}
+                      disabled={!prefsRegenPending}
+                      className="shrink-0 flex items-center gap-1.5 text-[12px] font-semibold text-white bg-ct-action hover:bg-ct-action-hover px-3.5 py-1.5 rounded-full transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                    >
+                      <ArrowsClockwise size={12} weight="bold" />
+                      Regenerate plan
+                    </button>
+                  </div>
+                </div>
+              );
               if (msg.kind === "planning") return (
                 <div key={msg.id} className="flex gap-2.5">
                   <SparkSlot show={isFirstInTurn} />
@@ -4981,6 +5108,7 @@ function ChatArea({
                     onSwapHighlight={onSwapHighlight}
                     onLogChange={onLogChange}
                     destination={chipCtx?.destination ?? ""}
+                    collabActive={collabActive}
                   />
                 </div>
               );
@@ -5346,6 +5474,30 @@ export default function AIPlanner() {
   });
   const [regenPending, setRegenPending] = useState(false);
 
+  /* ── Collaborative planning state ── */
+  const [travellers, setTravellers] = useState<Traveller[]>([TRAVELLER_N]);
+  const [collabActive, setCollabActive] = useState(false);
+  const [prefsRegenPending, setPrefsRegenPending] = useState(false);
+
+  function handleInviteAlex() {
+    if (travellers.length >= 2) return;
+    setTravellers([TRAVELLER_N, TRAVELLER_A]);
+    addMsg({ kind: "system", text: "Alex joined the trip and added preferences: Relaxed, Scenic" });
+    setPrefsRegenPending(true);
+    setTimeout(() => addMsg({ kind: "regen-prompt", text: "Preferences updated — regenerate plan?" }), 350);
+  }
+
+  function handleRegenForPrefs() {
+    if (!prefsRegenPending) return;
+    setPrefsRegenPending(false);
+    setCollabActive(true);
+    addMsg({ kind: "system", text: "Plan regenerated — activities now labelled by traveller preference." });
+    setPlanUpdating(true);
+    if (updateTimer.current) clearTimeout(updateTimer.current);
+    updateTimer.current = setTimeout(() => setPlanUpdating(false), 1200);
+    triggerHighlight(selectedDay);
+  }
+
   /* Accumulate changes between saves; latest label wins. */
   function logChange(label: string, change: string) {
     setPendingChange(prev => ({
@@ -5667,6 +5819,9 @@ export default function AIPlanner() {
     setCurrentVersionId(null);
     setPendingChange({ label: "Initial plan", changes: [] });
     setRegenPending(false);
+    setTravellers([TRAVELLER_N]);
+    setCollabActive(false);
+    setPrefsRegenPending(false);
     setFlowMode("bali");
     setRandomRound(1);
     setRandomDestIntent("");
@@ -5741,6 +5896,11 @@ export default function AIPlanner() {
         onRegenerate={handleRegenerate}
         onOpenMobileSidebar={() => setMobileSidebarOpen(true)}
         onOpenMobileMap={() => setMobileMapOpen(true)}
+        travellers={travellers}
+        onInvite={handleInviteAlex}
+        prefsRegenPending={prefsRegenPending}
+        onRegenForPrefs={handleRegenForPrefs}
+        collabActive={collabActive}
       />
       {stage === "results" ? (
         <>
