@@ -56,7 +56,16 @@ interface TravellerVote { travellerA: string; travellerB: string; options: strin
 interface QOption { label: string; arrow?: boolean }
 interface QDef { id: string; question: string; options: QOption[]; multi?: boolean; placeholder: string; pageOf: number }
 interface SummaryPair { q: string; a: string }
-interface Msg { id: string; kind: "user-init" | "ai" | "summary" | "planning-done"; text?: string; pairs?: SummaryPair[] }
+type SwapKind = "stay" | "activity";
+type CardSet = "savings" | "cafes" | "adventure" | "pace";
+interface Msg {
+  id: string;
+  kind: "user-init" | "ai" | "summary" | "planning-done" | "breakdown" | "swap" | "cards";
+  text?: string;
+  pairs?: SummaryPair[];
+  swapKind?: SwapKind;
+  cardSet?: CardSet;
+}
 interface ChipCtx {
   destination: string;
   dateMode: string;
@@ -283,9 +292,25 @@ const COMMUNITY = [
 
 /* ── Itinerary data ──────────────────────────────────────── */
 type ActivityType = "hotel" | "beach" | "food" | "nature" | "shopping" | "culture" | "dance" | "trek" | "flight" | "sunset" | "spa" | "walk";
-interface DayActivity { time: string; name: string; type: ActivityType }
+interface DayActivity { time: string; name: string; type: ActivityType; lat?: number; lng?: number; img?: string; blurb?: string; mentionedBy?: number }
 interface PlaceReview { author: string; avatar: string; rating: number; text: string; date: string }
-interface PlaceDetail { description: string; weather: string; temp: string; highlights: string[]; reviews: PlaceReview[] }
+interface PlaceGuide { title: string; author: string; img: string; readTime: string }
+interface PlaceStay { name: string; sub: string; rating: number; price: string; img: string }
+interface PlaceRestaurant { name: string; cuisine: string; rating: number; price: string; img: string }
+interface PlaceThing { name: string; sub: string; mentions: number; img: string }
+interface PlaceDetail {
+  description: string; weather: string; temp: string;
+  highlights: string[];
+  reviews: PlaceReview[];
+  region?: string;
+  mentionedBy?: number;
+  recommenderAvatars?: string[];
+  gallery?: string[];
+  guides?: PlaceGuide[];
+  stays?: PlaceStay[];
+  restaurants?: PlaceRestaurant[];
+  thingsToDo?: PlaceThing[];
+}
 interface DayPlan {
   day: number; location: string; lat: number; lng: number;
   img: string; tag: string;
@@ -311,15 +336,517 @@ function ActivityIcon({ type, size = 15 }: { type: ActivityType; size?: number }
   return <Compass size={size} className={cls} />;
 }
 
+/* Per-location catalog data (shared across day plans) */
+const PLACE_CATALOG: Record<string, {
+  region: string;
+  mentionedBy: number;
+  recommenderAvatars: string[];
+  gallery: string[];
+  guides: PlaceGuide[];
+  stays: PlaceStay[];
+  restaurants: PlaceRestaurant[];
+  thingsToDo: PlaceThing[];
+}> = {
+  Seminyak: {
+    region: "South Bali, Indonesia",
+    mentionedBy: 312,
+    recommenderAvatars: ["https://i.pravatar.cc/40?img=47","https://i.pravatar.cc/40?img=12","https://i.pravatar.cc/40?img=32","https://i.pravatar.cc/40?img=5"],
+    gallery: ["https://picsum.photos/seed/sem-1/600/400","https://picsum.photos/seed/sem-2/600/400","https://picsum.photos/seed/sem-3/600/400","https://picsum.photos/seed/sem-4/600/400","https://picsum.photos/seed/sem-5/600/400"],
+    guides: [
+      { title: "Where to find Seminyak's best sunsets", author: "Lonely Planet", img: "https://picsum.photos/seed/g-sem-1/300/200", readTime: "6 min" },
+      { title: "A first-timer's guide to Seminyak nightlife", author: "Condé Nast", img: "https://picsum.photos/seed/g-sem-2/300/200", readTime: "8 min" },
+      { title: "Boutique shopping on Jalan Kayu Aya", author: "T+L", img: "https://picsum.photos/seed/g-sem-3/300/200", readTime: "5 min" },
+    ],
+    stays: [
+      { name: "The Legian Bali", sub: "Beachfront · 5★", rating: 4.8, price: "₹14,200/nt", img: "https://picsum.photos/seed/s-sem-1/300/220" },
+      { name: "Katamama Suites", sub: "Boutique · 5★", rating: 4.9, price: "₹12,400/nt", img: "https://picsum.photos/seed/s-sem-2/300/220" },
+      { name: "W Bali Seminyak", sub: "Design · 5★", rating: 4.7, price: "₹11,200/nt", img: "https://picsum.photos/seed/s-sem-3/300/220" },
+    ],
+    restaurants: [
+      { name: "Sardine", cuisine: "Seafood · Modern Indonesian", rating: 4.8, price: "₹₹₹", img: "https://picsum.photos/seed/r-sem-1/300/220" },
+      { name: "Merah Putih", cuisine: "Heritage Indonesian", rating: 4.7, price: "₹₹₹", img: "https://picsum.photos/seed/r-sem-2/300/220" },
+      { name: "La Lucciola", cuisine: "Italian · Beachfront", rating: 4.6, price: "₹₹", img: "https://picsum.photos/seed/r-sem-3/300/220" },
+    ],
+    thingsToDo: [
+      { name: "Seminyak Beach sunset walk", sub: "Free · 90 min", mentions: 184, img: "https://picsum.photos/seed/t-sem-1/300/220" },
+      { name: "Petitenget Temple visit", sub: "Free · 30 min", mentions: 92, img: "https://picsum.photos/seed/t-sem-2/300/220" },
+      { name: "Surfing lesson at Echo Beach", sub: "₹1,800 · 2h", mentions: 76, img: "https://picsum.photos/seed/t-sem-3/300/220" },
+    ],
+  },
+  Ubud: {
+    region: "Central Bali, Indonesia",
+    mentionedBy: 428,
+    recommenderAvatars: ["https://i.pravatar.cc/40?img=70","https://i.pravatar.cc/40?img=23","https://i.pravatar.cc/40?img=44","https://i.pravatar.cc/40?img=8"],
+    gallery: ["https://picsum.photos/seed/ub-1/600/400","https://picsum.photos/seed/ub-2/600/400","https://picsum.photos/seed/ub-3/600/400","https://picsum.photos/seed/ub-4/600/400","https://picsum.photos/seed/ub-5/600/400"],
+    guides: [
+      { title: "The complete Ubud rice terrace itinerary", author: "Lonely Planet", img: "https://picsum.photos/seed/g-ub-1/300/200", readTime: "9 min" },
+      { title: "Best art galleries and craft markets in Ubud", author: "Travel + Leisure", img: "https://picsum.photos/seed/g-ub-2/300/200", readTime: "6 min" },
+      { title: "A vegan food crawl through central Ubud", author: "Eater", img: "https://picsum.photos/seed/g-ub-3/300/200", readTime: "7 min" },
+    ],
+    stays: [
+      { name: "Alaya Resort Ubud", sub: "Pool villa · 4★", rating: 4.7, price: "₹6,200/nt", img: "https://picsum.photos/seed/s-ub-1/300/220" },
+      { name: "COMO Uma Ubud", sub: "Wellness · 5★", rating: 4.8, price: "₹13,400/nt", img: "https://picsum.photos/seed/s-ub-2/300/220" },
+      { name: "Mandapa, A Ritz-Carlton Reserve", sub: "Riverside · 5★", rating: 4.9, price: "₹26,000/nt", img: "https://picsum.photos/seed/s-ub-3/300/220" },
+    ],
+    restaurants: [
+      { name: "Locavore", cuisine: "Tasting menu · Modern", rating: 4.9, price: "₹₹₹₹", img: "https://picsum.photos/seed/r-ub-1/300/220" },
+      { name: "Hujan Locale", cuisine: "Indonesian heritage", rating: 4.7, price: "₹₹", img: "https://picsum.photos/seed/r-ub-2/300/220" },
+      { name: "Yellow Flower Café", cuisine: "Vegan brunch", rating: 4.8, price: "₹", img: "https://picsum.photos/seed/r-ub-3/300/220" },
+    ],
+    thingsToDo: [
+      { name: "Tegallalang rice terrace walk", sub: "₹600 · 2h", mentions: 287, img: "https://picsum.photos/seed/t-ub-1/300/220" },
+      { name: "Sacred Monkey Forest", sub: "₹500 · 1.5h", mentions: 198, img: "https://picsum.photos/seed/t-ub-2/300/220" },
+      { name: "Kecak fire dance · Ubud Palace", sub: "₹600 · 1h", mentions: 156, img: "https://picsum.photos/seed/t-ub-3/300/220" },
+    ],
+  },
+  Kintamani: {
+    region: "Bangli Regency, Bali",
+    mentionedBy: 198,
+    recommenderAvatars: ["https://i.pravatar.cc/40?img=15","https://i.pravatar.cc/40?img=44","https://i.pravatar.cc/40?img=8","https://i.pravatar.cc/40?img=29"],
+    gallery: ["https://picsum.photos/seed/kt-1/600/400","https://picsum.photos/seed/kt-2/600/400","https://picsum.photos/seed/kt-3/600/400","https://picsum.photos/seed/kt-4/600/400"],
+    guides: [
+      { title: "Mount Batur sunrise trek — what to know", author: "Outside", img: "https://picsum.photos/seed/g-kt-1/300/200", readTime: "8 min" },
+      { title: "Caldera-rim cafés worth the drive", author: "Eater", img: "https://picsum.photos/seed/g-kt-2/300/200", readTime: "5 min" },
+    ],
+    stays: [
+      { name: "Bali Sunrise Camp", sub: "Tents · base camp", rating: 4.6, price: "₹2,800/nt", img: "https://picsum.photos/seed/s-kt-1/300/220" },
+      { name: "Lakeview Hotel & Restaurant", sub: "Caldera-rim · 3★", rating: 4.4, price: "₹3,400/nt", img: "https://picsum.photos/seed/s-kt-2/300/220" },
+    ],
+    restaurants: [
+      { name: "Kintamani Ulun Danu Café", cuisine: "Buffet · lake view", rating: 4.5, price: "₹₹", img: "https://picsum.photos/seed/r-kt-1/300/220" },
+      { name: "Montana del Café", cuisine: "Coffee · highland views", rating: 4.7, price: "₹", img: "https://picsum.photos/seed/r-kt-2/300/220" },
+    ],
+    thingsToDo: [
+      { name: "Mount Batur sunrise trek", sub: "₹3,200 · 4h", mentions: 187, img: "https://picsum.photos/seed/t-kt-1/300/220" },
+      { name: "Banjar hot springs", sub: "₹500 · 90 min", mentions: 88, img: "https://picsum.photos/seed/t-kt-2/300/220" },
+      { name: "Caldera-rim swing", sub: "₹1,200 · 30 min", mentions: 64, img: "https://picsum.photos/seed/t-kt-3/300/220" },
+    ],
+  },
+  Uluwatu: {
+    region: "Bukit Peninsula, Bali",
+    mentionedBy: 264,
+    recommenderAvatars: ["https://i.pravatar.cc/40?img=29","https://i.pravatar.cc/40?img=60","https://i.pravatar.cc/40?img=36","https://i.pravatar.cc/40?img=18"],
+    gallery: ["https://picsum.photos/seed/ul-1/600/400","https://picsum.photos/seed/ul-2/600/400","https://picsum.photos/seed/ul-3/600/400","https://picsum.photos/seed/ul-4/600/400","https://picsum.photos/seed/ul-5/600/400"],
+    guides: [
+      { title: "Uluwatu cliff temples and sunset rituals", author: "Lonely Planet", img: "https://picsum.photos/seed/g-ul-1/300/200", readTime: "7 min" },
+      { title: "Surfer's guide to the Bukit", author: "Stab Mag", img: "https://picsum.photos/seed/g-ul-2/300/200", readTime: "10 min" },
+      { title: "Where to eat seafood in Jimbaran", author: "Eater", img: "https://picsum.photos/seed/g-ul-3/300/200", readTime: "6 min" },
+    ],
+    stays: [
+      { name: "Bulgari Resort Bali", sub: "Cliff villa · 5★", rating: 4.9, price: "₹48,000/nt", img: "https://picsum.photos/seed/s-ul-1/300/220" },
+      { name: "Six Senses Uluwatu", sub: "Ocean view · 5★", rating: 4.8, price: "₹32,000/nt", img: "https://picsum.photos/seed/s-ul-2/300/220" },
+      { name: "Anantara Uluwatu", sub: "Cliffside suites · 5★", rating: 4.7, price: "₹18,400/nt", img: "https://picsum.photos/seed/s-ul-3/300/220" },
+    ],
+    restaurants: [
+      { name: "Single Fin", cuisine: "Cliff bar · global", rating: 4.7, price: "₹₹", img: "https://picsum.photos/seed/r-ul-1/300/220" },
+      { name: "Menega Café Jimbaran", cuisine: "Beachside seafood BBQ", rating: 4.5, price: "₹₹", img: "https://picsum.photos/seed/r-ul-2/300/220" },
+      { name: "Suka Espresso", cuisine: "Australian-style brunch", rating: 4.8, price: "₹", img: "https://picsum.photos/seed/r-ul-3/300/220" },
+    ],
+    thingsToDo: [
+      { name: "Pura Luhur Uluwatu", sub: "₹500 · 90 min", mentions: 241, img: "https://picsum.photos/seed/t-ul-1/300/220" },
+      { name: "Kecak fire dance at sunset", sub: "₹600 · 1h", mentions: 198, img: "https://picsum.photos/seed/t-ul-2/300/220" },
+      { name: "Padang Padang beach swim", sub: "Free · 2h", mentions: 142, img: "https://picsum.photos/seed/t-ul-3/300/220" },
+    ],
+  },
+  "Nusa Dua": {
+    region: "South Bali, Indonesia",
+    mentionedBy: 156,
+    recommenderAvatars: ["https://i.pravatar.cc/40?img=41","https://i.pravatar.cc/40?img=67","https://i.pravatar.cc/40?img=18","https://i.pravatar.cc/40?img=70"],
+    gallery: ["https://picsum.photos/seed/nd-1/600/400","https://picsum.photos/seed/nd-2/600/400","https://picsum.photos/seed/nd-3/600/400","https://picsum.photos/seed/nd-4/600/400"],
+    guides: [
+      { title: "The luxury resort guide to Nusa Dua", author: "Condé Nast", img: "https://picsum.photos/seed/g-nd-1/300/200", readTime: "6 min" },
+      { title: "Best spa rituals in South Bali", author: "T+L", img: "https://picsum.photos/seed/g-nd-2/300/200", readTime: "5 min" },
+    ],
+    stays: [
+      { name: "The St. Regis Bali", sub: "Lagoon · 5★", rating: 4.9, price: "₹38,000/nt", img: "https://picsum.photos/seed/s-nd-1/300/220" },
+      { name: "Mulia Resort Nusa Dua", sub: "Beachfront · 5★", rating: 4.7, price: "₹24,000/nt", img: "https://picsum.photos/seed/s-nd-2/300/220" },
+      { name: "Conrad Bali", sub: "Family · 5★", rating: 4.6, price: "₹18,000/nt", img: "https://picsum.photos/seed/s-nd-3/300/220" },
+    ],
+    restaurants: [
+      { name: "Bumbu Bali", cuisine: "Authentic Balinese", rating: 4.8, price: "₹₹", img: "https://picsum.photos/seed/r-nd-1/300/220" },
+      { name: "Soleil at The Mulia", cuisine: "Mediterranean · pool-side", rating: 4.6, price: "₹₹₹", img: "https://picsum.photos/seed/r-nd-2/300/220" },
+    ],
+    thingsToDo: [
+      { name: "Waterblow at Nusa Dua", sub: "Free · 1h", mentions: 112, img: "https://picsum.photos/seed/t-nd-1/300/220" },
+      { name: "Balinese spa ritual", sub: "₹1,800 · 90 min", mentions: 96, img: "https://picsum.photos/seed/t-nd-2/300/220" },
+      { name: "Beach SUP & kayak", sub: "₹1,200 · 2h", mentions: 64, img: "https://picsum.photos/seed/t-nd-3/300/220" },
+    ],
+  },
+};
+
+/* Per-stop rich detail used by the Stop detail panel. */
+interface StopFact { label: string; value: string }
+interface StopDetail {
+  description: string;
+  gallery: string[];
+  facts: StopFact[];
+  mustOrder?: string[];     // food
+  bestVantage?: string;     // sunset / view
+  rules?: string[];         // culture / temple
+  whatToBring?: string[];   // trek / nature
+  amenities?: string[];     // hotel / spa
+  whatToBuy?: string[];     // shopping
+  showtimes?: string[];     // dance / show
+  tips?: string[];          // generic
+  reviews: PlaceReview[];
+  mentionedBy: number;
+  recommenderAvatars: string[];
+}
+
+const STOP_DETAILS: Record<string, StopDetail> = {
+  "Check-in at Taj Fort Aguada": {
+    description: "Heritage 5★ resort built into a 17th-century Portuguese fort, perched above Sinquerim beach. Sea-view rooms, breakfast included, and a private stretch of sand.",
+    gallery: ["https://picsum.photos/seed/sd-taj-1/600/400","https://picsum.photos/seed/sd-taj-2/600/400","https://picsum.photos/seed/sd-taj-3/600/400","https://picsum.photos/seed/sd-taj-4/600/400"],
+    facts: [
+      { label: "Check-in", value: "from 14:00" },
+      { label: "Rating", value: "★ 4.8 / 5" },
+      { label: "Stay", value: "4 nights" },
+      { label: "Includes", value: "Breakfast" },
+    ],
+    amenities: ["Private beach access", "Spa & yoga deck", "3 swimming pools", "Kids' club", "Airport transfer"],
+    tips: ["Ask reception for the sea-view upgrade — usually free off-season", "Sunset cocktails on the fort wall start at 17:30"],
+    reviews: [
+      { author: "Priya M.", avatar: "https://i.pravatar.cc/40?img=47", rating: 5, text: "The fort views from the pool deck are unbeatable. Service is gracious without being stiff.", date: "Mar 2025" },
+      { author: "Arjun K.", avatar: "https://i.pravatar.cc/40?img=12", rating: 5, text: "Worth every rupee. The breakfast spread alone justifies the rate.", date: "Jan 2025" },
+    ],
+    mentionedBy: 142,
+    recommenderAvatars: ["https://i.pravatar.cc/40?img=47","https://i.pravatar.cc/40?img=12","https://i.pravatar.cc/40?img=32"],
+  },
+  "Seminyak Beach sunset": {
+    description: "The most photographed sunset strip on the island. Soft black sand, beach beds at the bars, and an unbroken horizon over the Indian Ocean.",
+    gallery: ["https://picsum.photos/seed/sd-sun-1/600/400","https://picsum.photos/seed/sd-sun-2/600/400","https://picsum.photos/seed/sd-sun-3/600/400","https://picsum.photos/seed/sd-sun-4/600/400"],
+    facts: [
+      { label: "Best time", value: "16:30 – 18:30" },
+      { label: "Sunset", value: "approx 18:14" },
+      { label: "Cost", value: "Free" },
+      { label: "Crowd", value: "Moderate" },
+    ],
+    bestVantage: "Get a beanbag at La Plancha or Ku De Ta about an hour before sunset. Walk 200m north for an emptier stretch with the same view.",
+    tips: ["Order the coconut before the sun drops — service slows down", "Bring a light layer, the sea breeze cools fast at dusk"],
+    reviews: [
+      { author: "Nadia R.", avatar: "https://i.pravatar.cc/40?img=5", rating: 5, text: "We moved our flight just to keep this in. Worth it.", date: "Apr 2025" },
+      { author: "Marcus T.", avatar: "https://i.pravatar.cc/40?img=70", rating: 4, text: "Stunning, but the beanbag bars charge a minimum spend — go in knowing that.", date: "Mar 2025" },
+    ],
+    mentionedBy: 184,
+    recommenderAvatars: ["https://i.pravatar.cc/40?img=5","https://i.pravatar.cc/40?img=70","https://i.pravatar.cc/40?img=23"],
+  },
+  "Dinner at Sardine Restaurant": {
+    description: "Sardine is built around a working rice paddy lit by lanterns at night. The kitchen serves modern Indonesian seafood from the Jimbaran auction.",
+    gallery: ["https://picsum.photos/seed/sd-sar-1/600/400","https://picsum.photos/seed/sd-sar-2/600/400","https://picsum.photos/seed/sd-sar-3/600/400"],
+    facts: [
+      { label: "Cuisine", value: "Modern Indonesian seafood" },
+      { label: "Price", value: "₹₹₹ · ~₹2,000pp" },
+      { label: "Hours", value: "18:00 – 23:00" },
+      { label: "Dress", value: "Smart casual" },
+    ],
+    mustOrder: ["Charcoal-grilled mahi-mahi", "Black tiger prawns sambal matah", "Ubud spinach with garlic", "Pandan crème brûlée"],
+    tips: ["Book at least 48h ahead, and request a paddy-side table", "Skip the wine list — the cocktail menu is much stronger"],
+    reviews: [
+      { author: "Isha M.", avatar: "https://i.pravatar.cc/40?img=41", rating: 5, text: "Genuinely one of the best meals of our trip. Order the prawns.", date: "Apr 2025" },
+      { author: "Chris A.", avatar: "https://i.pravatar.cc/40?img=67", rating: 4, text: "Romantic setting, fish was perfect, dessert was just OK.", date: "Feb 2025" },
+    ],
+    mentionedBy: 128,
+    recommenderAvatars: ["https://i.pravatar.cc/40?img=41","https://i.pravatar.cc/40?img=67","https://i.pravatar.cc/40?img=18"],
+  },
+  "Tegallalang rice terrace trek": {
+    description: "UNESCO subak terraces sculpted into the hillside. The 90-minute loop passes carved Hindu shrines and family-run coffee gardens.",
+    gallery: ["https://picsum.photos/seed/sd-teg-1/600/400","https://picsum.photos/seed/sd-teg-2/600/400","https://picsum.photos/seed/sd-teg-3/600/400","https://picsum.photos/seed/sd-teg-4/600/400"],
+    facts: [
+      { label: "Duration", value: "90 min loop" },
+      { label: "Difficulty", value: "Easy · 2 km" },
+      { label: "Best time", value: "07:00 – 09:00" },
+      { label: "Entry", value: "₹600pp" },
+    ],
+    whatToBring: ["Sunscreen + cap", "Water bottle", "Insect repellent", "₹1,000 cash for shrine donations"],
+    tips: ["Arrive by 8am — the path gets crowded by 10:00", "The Bali Swing photo-stop is at the southern end of the loop"],
+    reviews: [
+      { author: "Nadia R.", avatar: "https://i.pravatar.cc/40?img=5", rating: 5, text: "Did it at 7am with no crowds — felt almost spiritual.", date: "Apr 2025" },
+      { author: "Marcus T.", avatar: "https://i.pravatar.cc/40?img=70", rating: 4, text: "Beautiful but very steep on the back path — wear real shoes.", date: "Mar 2025" },
+    ],
+    mentionedBy: 287,
+    recommenderAvatars: ["https://i.pravatar.cc/40?img=5","https://i.pravatar.cc/40?img=70","https://i.pravatar.cc/40?img=23","https://i.pravatar.cc/40?img=44"],
+  },
+  "Ubud Monkey Forest": {
+    description: "A sacred sanctuary with three temples and around 700 long-tailed macaques. The path winds past mossy banyan roots and the Holy Spring Bathing Temple.",
+    gallery: ["https://picsum.photos/seed/sd-mky-1/600/400","https://picsum.photos/seed/sd-mky-2/600/400","https://picsum.photos/seed/sd-mky-3/600/400"],
+    facts: [
+      { label: "Duration", value: "1.5 h" },
+      { label: "Entry", value: "₹500pp" },
+      { label: "Hours", value: "08:30 – 17:30" },
+      { label: "Crowd", value: "High midday" },
+    ],
+    rules: ["Don't carry food or water bottles in bags", "Hide loose jewellery and sunglasses", "Avoid eye contact and don't smile at the macaques", "Move slowly and don't run"],
+    reviews: [
+      { author: "Anika S.", avatar: "https://i.pravatar.cc/40?img=23", rating: 4, text: "Adorable but mischievous. They took my granola bar through a zipped pocket.", date: "Feb 2025" },
+    ],
+    mentionedBy: 198,
+    recommenderAvatars: ["https://i.pravatar.cc/40?img=23","https://i.pravatar.cc/40?img=44","https://i.pravatar.cc/40?img=8"],
+  },
+  "Ubud Market craft shopping": {
+    description: "A two-storey market with woodwork, batiks, silver jewellery and rattan baskets. Bargain politely — the asking price is usually 2-3× the going rate.",
+    gallery: ["https://picsum.photos/seed/sd-mkt-1/600/400","https://picsum.photos/seed/sd-mkt-2/600/400","https://picsum.photos/seed/sd-mkt-3/600/400"],
+    facts: [
+      { label: "Hours", value: "06:00 – 18:00" },
+      { label: "Best time", value: "Mornings" },
+      { label: "Bargain", value: "Start at 40%" },
+      { label: "ATMs", value: "Outside east gate" },
+    ],
+    whatToBuy: ["Hand-carved teak figurines", "Hand-block-printed batik fabric", "Sterling silver from Celuk artisans", "Coconut-shell bowls and spoons", "Rattan handbags"],
+    tips: ["The upper floor has the better prices — most tourists never climb up", "Walk away if a price feels off — they'll usually call you back"],
+    reviews: [
+      { author: "Marcus T.", avatar: "https://i.pravatar.cc/40?img=70", rating: 5, text: "Got a beautiful batik runner for ₹450 after starting at ₹1,400.", date: "Mar 2025" },
+    ],
+    mentionedBy: 134,
+    recommenderAvatars: ["https://i.pravatar.cc/40?img=70","https://i.pravatar.cc/40?img=8","https://i.pravatar.cc/40?img=23"],
+  },
+  "Traditional Kecak fire dance": {
+    description: "100-voice chanted Ramayana ritual at sunset. No instruments — just bodies, voices, and a ring of fire. One of Bali's defining cultural experiences.",
+    gallery: ["https://picsum.photos/seed/sd-kec-1/600/400","https://picsum.photos/seed/sd-kec-2/600/400","https://picsum.photos/seed/sd-kec-3/600/400"],
+    facts: [
+      { label: "Duration", value: "60 min" },
+      { label: "Entry", value: "₹600pp" },
+      { label: "Start", value: "18:00 daily" },
+      { label: "Seating", value: "Open-air, terraced" },
+    ],
+    showtimes: ["18:00 — gates open", "18:30 — performance begins", "19:30 — fire ritual finale"],
+    tips: ["Arrive 30 min early for a front-row seat", "Bring a sarong or cushion — stone seats get hard fast"],
+    reviews: [
+      { author: "Leila H.", avatar: "https://i.pravatar.cc/40?img=29", rating: 5, text: "Goosebumps from the first chant. Don't miss this.", date: "Feb 2025" },
+    ],
+    mentionedBy: 156,
+    recommenderAvatars: ["https://i.pravatar.cc/40?img=29","https://i.pravatar.cc/40?img=60","https://i.pravatar.cc/40?img=36"],
+  },
+  "Mount Batur sunrise trek": {
+    description: "A pre-dawn climb up an active volcano to watch the sun rise above a sea of clouds. Roughly 2 hours up, lunar landscape at the summit, and a hot breakfast cooked by steam vents.",
+    gallery: ["https://picsum.photos/seed/sd-bat-1/600/400","https://picsum.photos/seed/sd-bat-2/600/400","https://picsum.photos/seed/sd-bat-3/600/400","https://picsum.photos/seed/sd-bat-4/600/400"],
+    facts: [
+      { label: "Duration", value: "4 h round trip" },
+      { label: "Difficulty", value: "Moderate · 1717m" },
+      { label: "Start", value: "Pickup at 02:00" },
+      { label: "Cost", value: "₹3,200pp · with guide" },
+    ],
+    whatToBring: ["Layered clothing (5°C at the summit)", "Sturdy walking shoes", "Headlamp + spare batteries", "Hot drink for the top", "Light snack — guides serve breakfast"],
+    tips: ["Book a private guide — the group treks get strung out on the steep section", "Don't bring a tripod — too windy at the rim"],
+    reviews: [
+      { author: "Rohit V.", avatar: "https://i.pravatar.cc/40?img=15", rating: 5, text: "Hardest 90 minutes of the trip and the best sunrise of my life.", date: "Apr 2025" },
+    ],
+    mentionedBy: 187,
+    recommenderAvatars: ["https://i.pravatar.cc/40?img=15","https://i.pravatar.cc/40?img=44","https://i.pravatar.cc/40?img=8"],
+  },
+  "Kintamani volcano viewpoint": {
+    description: "Caldera-rim panorama with an active volcano and crater lake. Coffee shacks line the road — most have terrace tables that hang over the edge.",
+    gallery: ["https://picsum.photos/seed/sd-kvp-1/600/400","https://picsum.photos/seed/sd-kvp-2/600/400","https://picsum.photos/seed/sd-kvp-3/600/400"],
+    facts: [
+      { label: "Duration", value: "30–60 min" },
+      { label: "Best time", value: "10:00 – 11:30" },
+      { label: "Cost", value: "Free · café spend" },
+      { label: "Weather", value: "Cool · 18°C" },
+    ],
+    bestVantage: "Stop at Montana del Café — the back terrace has the cleanest line of sight to the crater. Avoid the first viewpoint on the road, it's a tour-bus magnet.",
+    reviews: [
+      { author: "Camille B.", avatar: "https://i.pravatar.cc/40?img=44", rating: 4, text: "Quick stop, but the coffee was excellent and the view huge.", date: "Jan 2025" },
+    ],
+    mentionedBy: 92,
+    recommenderAvatars: ["https://i.pravatar.cc/40?img=44","https://i.pravatar.cc/40?img=15"],
+  },
+  "Banjar hot springs soak": {
+    description: "Three geothermal pools in a tropical garden. Water flows from carved naga (serpent) spouts at 38°C — perfect for tired legs after the volcano hike.",
+    gallery: ["https://picsum.photos/seed/sd-bj-1/600/400","https://picsum.photos/seed/sd-bj-2/600/400","https://picsum.photos/seed/sd-bj-3/600/400"],
+    facts: [
+      { label: "Duration", value: "60–90 min" },
+      { label: "Entry", value: "₹500pp" },
+      { label: "Hours", value: "08:00 – 18:00" },
+      { label: "Water", value: "38°C · sulphuric" },
+    ],
+    amenities: ["Changing rooms", "Lockers (₹100)", "Café upstairs", "Towel rental"],
+    reviews: [
+      { author: "Camille B.", avatar: "https://i.pravatar.cc/40?img=44", rating: 4, text: "Exactly what we needed after Batur. Slightly egg-y smell but you stop noticing.", date: "Jan 2025" },
+    ],
+    mentionedBy: 88,
+    recommenderAvatars: ["https://i.pravatar.cc/40?img=44","https://i.pravatar.cc/40?img=15"],
+  },
+  "Local warung dinner in Ubud": {
+    description: "Family-run kitchen serving daily-rotating Balinese dishes. No menu — point at the warmer, take a plate, eat at communal teak benches.",
+    gallery: ["https://picsum.photos/seed/sd-war-1/600/400","https://picsum.photos/seed/sd-war-2/600/400","https://picsum.photos/seed/sd-war-3/600/400"],
+    facts: [
+      { label: "Cuisine", value: "Home-style Balinese" },
+      { label: "Price", value: "~₹250pp" },
+      { label: "Hours", value: "11:00 – 21:00" },
+      { label: "Cash only", value: "Yes" },
+    ],
+    mustOrder: ["Babi guling (suckling pig)", "Nasi campur", "Sate lilit (lemongrass skewers)", "Es daluman (green-jelly drink)"],
+    tips: ["Go before 19:00 — dishes run out by 20:00", "If they're sold out of babi guling, the chicken sambal matah is the next best"],
+    reviews: [
+      { author: "Anika S.", avatar: "https://i.pravatar.cc/40?img=23", rating: 5, text: "₹260 for the best Balinese meal of our trip. Eat where the locals do.", date: "Feb 2025" },
+    ],
+    mentionedBy: 76,
+    recommenderAvatars: ["https://i.pravatar.cc/40?img=23","https://i.pravatar.cc/40?img=44"],
+  },
+  "Uluwatu Temple clifftop walk": {
+    description: "Pura Luhur perches 70m above the Indian Ocean on a sheer limestone cliff. The path runs along the rim past wild macaques and ocean spray.",
+    gallery: ["https://picsum.photos/seed/sd-ul-1/600/400","https://picsum.photos/seed/sd-ul-2/600/400","https://picsum.photos/seed/sd-ul-3/600/400","https://picsum.photos/seed/sd-ul-4/600/400"],
+    facts: [
+      { label: "Duration", value: "90 min" },
+      { label: "Entry", value: "₹500pp · sarong incl." },
+      { label: "Hours", value: "07:00 – 19:00" },
+      { label: "Cliff height", value: "70 m" },
+    ],
+    rules: ["Sarong required (free at gate)", "Don't carry food, water, or shiny accessories", "Stay on the path — cliff edge has no rails", "Photography is OK; no flash inside the inner sanctum"],
+    bestVantage: "Walk past the main temple to the southern lookout — fewer tourists and the cleaner photo line.",
+    reviews: [
+      { author: "Leila H.", avatar: "https://i.pravatar.cc/40?img=29", rating: 5, text: "A monkey took my sunglasses straight off my head. I laughed about it for the rest of the trip.", date: "Feb 2025" },
+    ],
+    mentionedBy: 241,
+    recommenderAvatars: ["https://i.pravatar.cc/40?img=29","https://i.pravatar.cc/40?img=60","https://i.pravatar.cc/40?img=36"],
+  },
+  "Padang Padang beach swim": {
+    description: "A tucked-away cove reached through a slit in the limestone. Turquoise water, a perfect right-hand point break, and quieter than Kuta or Seminyak.",
+    gallery: ["https://picsum.photos/seed/sd-pad-1/600/400","https://picsum.photos/seed/sd-pad-2/600/400","https://picsum.photos/seed/sd-pad-3/600/400"],
+    facts: [
+      { label: "Duration", value: "2 h" },
+      { label: "Entry", value: "Free" },
+      { label: "Water", value: "Calm · clear" },
+      { label: "Surf", value: "Right-hand reef" },
+    ],
+    amenities: ["Sun-bed rental (₹150)", "Beach café", "Showers", "Lifeguard 09:00–17:00"],
+    tips: ["Go before 11:00 to find a free patch of sand", "The path down is via stone steps — hold the rail"],
+    reviews: [
+      { author: "Tom W.", avatar: "https://i.pravatar.cc/40?img=60", rating: 5, text: "Spectacular — turquoise water, perfect waves, postcard scenery.", date: "Apr 2025" },
+    ],
+    mentionedBy: 142,
+    recommenderAvatars: ["https://i.pravatar.cc/40?img=60","https://i.pravatar.cc/40?img=29","https://i.pravatar.cc/40?img=18"],
+  },
+  "Kecak dance at Uluwatu": {
+    description: "An open-air amphitheatre on the cliff edge — the chant begins as the sun touches the horizon. The fire ritual finale is one of Bali's signature images.",
+    gallery: ["https://picsum.photos/seed/sd-kec2-1/600/400","https://picsum.photos/seed/sd-kec2-2/600/400","https://picsum.photos/seed/sd-kec2-3/600/400"],
+    facts: [
+      { label: "Duration", value: "60 min" },
+      { label: "Start", value: "18:00 daily" },
+      { label: "Entry", value: "₹600pp" },
+      { label: "Seating", value: "Stone steps" },
+    ],
+    showtimes: ["17:30 — gates open", "18:00 — chanting begins", "18:50 — fire dance finale"],
+    tips: ["Get there 45 min early for centre-front seats", "Bring something to sit on — the stone is rough"],
+    reviews: [
+      { author: "Leila H.", avatar: "https://i.pravatar.cc/40?img=29", rating: 5, text: "Best ₹600 I spent on the entire trip.", date: "Feb 2025" },
+    ],
+    mentionedBy: 198,
+    recommenderAvatars: ["https://i.pravatar.cc/40?img=29","https://i.pravatar.cc/40?img=60","https://i.pravatar.cc/40?img=36"],
+  },
+  "Seafood dinner at Jimbaran Bay": {
+    description: "A line of beachfront BBQ shacks where you pick your fish from a chilled display, then eat it on the sand with toes in cool water.",
+    gallery: ["https://picsum.photos/seed/sd-jim-1/600/400","https://picsum.photos/seed/sd-jim-2/600/400","https://picsum.photos/seed/sd-jim-3/600/400"],
+    facts: [
+      { label: "Cuisine", value: "Beach BBQ seafood" },
+      { label: "Price", value: "₹₹ · ~₹1,400pp" },
+      { label: "Hours", value: "17:30 – 23:00" },
+      { label: "Reserve", value: "Front-row tables" },
+    ],
+    mustOrder: ["Whole grilled snapper with sambal matah", "Coconut-husk grilled prawns", "Steamed clams in lemongrass broth", "Grilled corn with chili-lime butter"],
+    tips: ["Menega Café and Bawang Merah are the most reliable shacks", "Tide rises after 21:00 — book a back row if you don't want feet wet"],
+    reviews: [
+      { author: "Tom W.", avatar: "https://i.pravatar.cc/40?img=60", rating: 5, text: "Sun setting, fish on a coconut grill, kids running on the sand. Perfect.", date: "Apr 2025" },
+    ],
+    mentionedBy: 134,
+    recommenderAvatars: ["https://i.pravatar.cc/40?img=60","https://i.pravatar.cc/40?img=18","https://i.pravatar.cc/40?img=41"],
+  },
+  "Nusa Dua beach morning walk": {
+    description: "Five kilometres of calm, white-sand beach with a shaded promenade. Most resorts open their gates so you can walk the full stretch.",
+    gallery: ["https://picsum.photos/seed/sd-nd-1/600/400","https://picsum.photos/seed/sd-nd-2/600/400","https://picsum.photos/seed/sd-nd-3/600/400"],
+    facts: [
+      { label: "Duration", value: "60–90 min" },
+      { label: "Distance", value: "5 km loop" },
+      { label: "Best time", value: "06:30 – 08:30" },
+      { label: "Cost", value: "Free" },
+    ],
+    tips: ["Start at the Waterblow lookout for the best photos", "The Conrad's beach café opens at 07:00 if you want a coffee mid-walk"],
+    reviews: [
+      { author: "Chris A.", avatar: "https://i.pravatar.cc/40?img=67", rating: 4, text: "Calm, clean, perfect for an easy morning before the flight.", date: "Feb 2025" },
+    ],
+    mentionedBy: 88,
+    recommenderAvatars: ["https://i.pravatar.cc/40?img=67","https://i.pravatar.cc/40?img=41","https://i.pravatar.cc/40?img=18"],
+  },
+  "Balinese spa & massage": {
+    description: "Coconut oil and rice-paste rituals rooted in centuries of Balinese healing. The 90-minute treatment includes a flower bath and ginger tea.",
+    gallery: ["https://picsum.photos/seed/sd-spa-1/600/400","https://picsum.photos/seed/sd-spa-2/600/400","https://picsum.photos/seed/sd-spa-3/600/400"],
+    facts: [
+      { label: "Duration", value: "90 min" },
+      { label: "Cost", value: "₹1,800pp" },
+      { label: "Hours", value: "09:00 – 21:00" },
+      { label: "Booking", value: "Same-day OK" },
+    ],
+    amenities: ["Steam room", "Flower bath", "Herbal tea lounge", "Outdoor garden treatment rooms"],
+    tips: ["Ask for the boreh body scrub if you have any sunburn — it's magical", "Don't book within 90 min of dinner — meal feels heavy after"],
+    reviews: [
+      { author: "Mia L.", avatar: "https://i.pravatar.cc/40?img=18", rating: 5, text: "Skin felt amazing for days after.", date: "Jan 2025" },
+    ],
+    mentionedBy: 96,
+    recommenderAvatars: ["https://i.pravatar.cc/40?img=18","https://i.pravatar.cc/40?img=41","https://i.pravatar.cc/40?img=67"],
+  },
+  "Farewell lunch at Bumbu Bali": {
+    description: "Chef Heinz von Holzen's love letter to Balinese cuisine. Authentic rijsttafel served on traditional banana-leaf platters in a teak pavilion.",
+    gallery: ["https://picsum.photos/seed/sd-bb-1/600/400","https://picsum.photos/seed/sd-bb-2/600/400","https://picsum.photos/seed/sd-bb-3/600/400"],
+    facts: [
+      { label: "Cuisine", value: "Authentic Balinese" },
+      { label: "Price", value: "₹₹ · ~₹1,200pp" },
+      { label: "Hours", value: "11:00 – 22:00" },
+      { label: "Reserve", value: "24h ahead" },
+    ],
+    mustOrder: ["Rijsttafel (Balinese tasting platter)", "Bebek betutu (slow-cooked duck)", "Sate lilit", "Black-rice pudding with palm sugar"],
+    tips: ["Cooking-class option is excellent — book 2 days ahead", "Ask for a pavilion seat, not the indoor dining room"],
+    reviews: [
+      { author: "Isha M.", avatar: "https://i.pravatar.cc/40?img=41", rating: 5, text: "The most authentic Balinese meal we had — and the cooking class is a highlight.", date: "Apr 2025" },
+    ],
+    mentionedBy: 112,
+    recommenderAvatars: ["https://i.pravatar.cc/40?img=41","https://i.pravatar.cc/40?img=67","https://i.pravatar.cc/40?img=18"],
+  },
+  "Depart from Ngurah Rai Airport": {
+    description: "Bali's international gateway (DPS). Allow 2.5 hours for international departures — the airport gets jammed in the late evening.",
+    gallery: ["https://picsum.photos/seed/sd-air-1/600/400","https://picsum.photos/seed/sd-air-2/600/400"],
+    facts: [
+      { label: "Code", value: "DPS" },
+      { label: "Drive", value: "~45 min from Nusa Dua" },
+      { label: "Departures", value: "Terminal 2 · International" },
+      { label: "Lounge", value: "Plaza Premium · ₹2,400" },
+    ],
+    tips: ["Use the Premium lounge — beats the food court by a mile", "Last duty-free wing has the best coffee (Ngurah Brew)"],
+    reviews: [],
+    mentionedBy: 0,
+    recommenderAvatars: [],
+  },
+};
+
+const ACTIVITY_BLURBS: Record<string, { blurb: string; mentioned: number }> = {
+  "Check-in at Taj Fort Aguada": { blurb: "Heritage cliff-top resort. Sea-view rooms, breakfast included.", mentioned: 142 },
+  "Seminyak Beach sunset": { blurb: "The most photographed sunset strip on the island.", mentioned: 184 },
+  "Dinner at Sardine Restaurant": { blurb: "Lakeside fine-dining built around a working rice paddy.", mentioned: 128 },
+  "Tegallalang rice terrace trek": { blurb: "UNESCO subak terraces — best photos at 8am with no crowds.", mentioned: 287 },
+  "Ubud Monkey Forest": { blurb: "Sacred sanctuary with three temples and 700 macaques.", mentioned: 198 },
+  "Ubud Market craft shopping": { blurb: "Bargain-friendly stalls of woodwork, batiks and silver.", mentioned: 134 },
+  "Traditional Kecak fire dance": { blurb: "100-voice chanted Ramayana ritual at dusk.", mentioned: 156 },
+  "Mount Batur sunrise trek": { blurb: "Pre-dawn climb to watch the sun rise above the clouds.", mentioned: 187 },
+  "Kintamani volcano viewpoint": { blurb: "Caldera-rim panorama with active volcano and crater lake.", mentioned: 92 },
+  "Banjar hot springs soak": { blurb: "Three geothermal pools surrounded by tropical jungle.", mentioned: 88 },
+  "Local warung dinner in Ubud": { blurb: "Family-run kitchens — try babi guling and nasi campur.", mentioned: 76 },
+  "Uluwatu Temple clifftop walk": { blurb: "70m sea-cliff temple — keep your sunglasses out of monkey reach.", mentioned: 241 },
+  "Padang Padang beach swim": { blurb: "Turquoise water and a perfect right-hand point break.", mentioned: 142 },
+  "Kecak dance at Uluwatu": { blurb: "Open-air amphitheatre with the sun setting behind the chant.", mentioned: 198 },
+  "Seafood dinner at Jimbaran Bay": { blurb: "Beachfront BBQ shacks — toes-in-sand, fish on coconut husks.", mentioned: 134 },
+  "Nusa Dua beach morning walk": { blurb: "5km of calm white-sand beach with shaded promenade.", mentioned: 88 },
+  "Balinese spa & massage": { blurb: "Coconut-oil and rice-paste rituals — book the 90-min treatment.", mentioned: 96 },
+  "Farewell lunch at Bumbu Bali": { blurb: "Authentic Balinese rijsttafel by chef Heinz von Holzen.", mentioned: 112 },
+  "Depart from Ngurah Rai Airport": { blurb: "Allow 2.5h before international departure.", mentioned: 0 },
+};
+
 const BALI_PLAN: DayPlan[] = [
   {
     day: 1, location: "Seminyak", lat: -8.692, lng: 115.165,
     img: "https://picsum.photos/seed/seminyak-beach/600/400",
     tag: "Arrival & Beach",
     activities: [
-      { time: "14:00", name: "Check-in at Taj Fort Aguada", type: "hotel" },
-      { time: "16:30", name: "Seminyak Beach sunset", type: "sunset" },
-      { time: "19:30", name: "Dinner at Sardine Restaurant", type: "food" },
+      { time: "14:00", name: "Check-in at Taj Fort Aguada", type: "hotel", lat: -8.6905, lng: 115.1685, img: "https://picsum.photos/seed/d1-hotel/120/120" },
+      { time: "16:30", name: "Seminyak Beach sunset", type: "sunset", lat: -8.6938, lng: 115.1572, img: "https://picsum.photos/seed/d1-sunset/120/120" },
+      { time: "19:30", name: "Dinner at Sardine Restaurant", type: "food", lat: -8.6826, lng: 115.1654, img: "https://picsum.photos/seed/d1-food/120/120" },
     ],
     alternatives: [
       ["Echo Beach surfing session", "Legian Beach walk", "Petitenget Beach"],
@@ -341,10 +868,10 @@ const BALI_PLAN: DayPlan[] = [
     img: "https://picsum.photos/seed/ubud-rice/600/400",
     tag: "Culture & Rice Terraces",
     activities: [
-      { time: "08:00", name: "Tegallalang rice terrace trek", type: "trek" },
-      { time: "11:00", name: "Ubud Monkey Forest", type: "nature" },
-      { time: "14:00", name: "Ubud Market craft shopping", type: "shopping" },
-      { time: "18:00", name: "Traditional Kecak fire dance", type: "dance" },
+      { time: "08:00", name: "Tegallalang rice terrace trek", type: "trek", lat: -8.4310, lng: 115.2790, img: "https://picsum.photos/seed/d2-trek/120/120" },
+      { time: "11:00", name: "Ubud Monkey Forest", type: "nature", lat: -8.5188, lng: 115.2587, img: "https://picsum.photos/seed/d2-nature/120/120" },
+      { time: "14:00", name: "Ubud Market craft shopping", type: "shopping", lat: -8.5069, lng: 115.2625, img: "https://picsum.photos/seed/d2-shop/120/120" },
+      { time: "18:00", name: "Traditional Kecak fire dance", type: "dance", lat: -8.5065, lng: 115.2630, img: "https://picsum.photos/seed/d2-dance/120/120" },
     ],
     alternatives: [
       ["Sacred Monkey Forest Sanctuary", "Campuhan Ridge Walk", "Goa Gajah temple"],
@@ -366,10 +893,10 @@ const BALI_PLAN: DayPlan[] = [
     img: "https://picsum.photos/seed/kintamani-volcano/600/400",
     tag: "Volcano & Hot Springs",
     activities: [
-      { time: "07:00", name: "Mount Batur sunrise trek", type: "trek" },
-      { time: "11:00", name: "Kintamani volcano viewpoint", type: "trek" },
-      { time: "14:00", name: "Banjar hot springs soak", type: "beach" },
-      { time: "18:30", name: "Local warung dinner in Ubud", type: "food" },
+      { time: "07:00", name: "Mount Batur sunrise trek", type: "trek", lat: -8.2419, lng: 115.3756, img: "https://picsum.photos/seed/d3-batur/120/120" },
+      { time: "11:00", name: "Kintamani volcano viewpoint", type: "trek", lat: -8.2452, lng: 115.3534, img: "https://picsum.photos/seed/d3-volcano/120/120" },
+      { time: "14:00", name: "Banjar hot springs soak", type: "beach", lat: -8.2280, lng: 115.3400, img: "https://picsum.photos/seed/d3-springs/120/120" },
+      { time: "18:30", name: "Local warung dinner in Ubud", type: "food", lat: -8.5070, lng: 115.2630, img: "https://picsum.photos/seed/d3-warung/120/120" },
     ],
     alternatives: [
       ["Lake Batur boat ride", "Bali Swing experience", "Jatiluwih rice terraces"],
@@ -391,10 +918,10 @@ const BALI_PLAN: DayPlan[] = [
     img: "https://picsum.photos/seed/uluwatu-cliff/600/400",
     tag: "Cliffs & Temples",
     activities: [
-      { time: "10:00", name: "Uluwatu Temple clifftop walk", type: "culture" },
-      { time: "12:30", name: "Padang Padang beach swim", type: "beach" },
-      { time: "17:30", name: "Kecak dance at Uluwatu", type: "dance" },
-      { time: "20:00", name: "Seafood dinner at Jimbaran Bay", type: "food" },
+      { time: "10:00", name: "Uluwatu Temple clifftop walk", type: "culture", lat: -8.8290, lng: 115.0850, img: "https://picsum.photos/seed/d4-temple/120/120" },
+      { time: "12:30", name: "Padang Padang beach swim", type: "beach", lat: -8.8118, lng: 115.1043, img: "https://picsum.photos/seed/d4-beach/120/120" },
+      { time: "17:30", name: "Kecak dance at Uluwatu", type: "dance", lat: -8.8295, lng: 115.0848, img: "https://picsum.photos/seed/d4-kecak/120/120" },
+      { time: "20:00", name: "Seafood dinner at Jimbaran Bay", type: "food", lat: -8.7900, lng: 115.1620, img: "https://picsum.photos/seed/d4-seafood/120/120" },
     ],
     alternatives: [
       ["Bingin Beach surf lesson", "Balangan Beach", "Single Fin cliff bar"],
@@ -416,10 +943,10 @@ const BALI_PLAN: DayPlan[] = [
     img: "https://picsum.photos/seed/nusa-dua-beach/600/400",
     tag: "Relaxation & Departure",
     activities: [
-      { time: "09:00", name: "Nusa Dua beach morning walk", type: "walk" },
-      { time: "10:30", name: "Balinese spa & massage", type: "spa" },
-      { time: "13:00", name: "Farewell lunch at Bumbu Bali", type: "food" },
-      { time: "17:00", name: "Depart from Ngurah Rai Airport", type: "flight" },
+      { time: "09:00", name: "Nusa Dua beach morning walk", type: "walk", lat: -8.7920, lng: 115.2310, img: "https://picsum.photos/seed/d5-walk/120/120" },
+      { time: "10:30", name: "Balinese spa & massage", type: "spa", lat: -8.7965, lng: 115.2275, img: "https://picsum.photos/seed/d5-spa/120/120" },
+      { time: "13:00", name: "Farewell lunch at Bumbu Bali", type: "food", lat: -8.7870, lng: 115.2230, img: "https://picsum.photos/seed/d5-lunch/120/120" },
+      { time: "17:00", name: "Depart from Ngurah Rai Airport", type: "flight", lat: -8.7467, lng: 115.1668, img: "https://picsum.photos/seed/d5-airport/120/120" },
     ],
     alternatives: [
       ["Waterblow Nusa Dua", "Benoa Bay water sports", "South Kuta beach morning"],
@@ -436,7 +963,27 @@ const BALI_PLAN: DayPlan[] = [
       ],
     },
   },
-];
+].map(d => {
+  const cat = PLACE_CATALOG[d.location];
+  return cat ? {
+    ...d,
+    activities: d.activities.map(a => {
+      const ab = ACTIVITY_BLURBS[a.name];
+      return ab ? { ...a, blurb: ab.blurb, mentionedBy: ab.mentioned } : a;
+    }),
+    detail: {
+      ...d.detail,
+      region: cat.region,
+      mentionedBy: cat.mentionedBy,
+      recommenderAvatars: cat.recommenderAvatars,
+      gallery: cat.gallery,
+      guides: cat.guides,
+      stays: cat.stays,
+      restaurants: cat.restaurants,
+      thingsToDo: cat.thingsToDo,
+    },
+  } : d;
+}) as DayPlan[];
 
 /* ── Star rating ─────────────────────────────────────────── */
 function StarRating({ rating }: { rating: number }) {
@@ -839,13 +1386,15 @@ function ConflictResolver() {
 
 /* ── Plan result view ────────────────────────────────────── */
 function PlanResultView({
-  onSelectDay, selectedDay, planUpdating,
+  onSelectDay, selectedDay, planUpdating, days, setDays, onSwapHighlight,
 }: {
   onSelectDay: (day: number) => void;
   selectedDay: number;
   planUpdating: boolean;
+  days: DayPlan[];
+  setDays: React.Dispatch<React.SetStateAction<DayPlan[]>>;
+  onSwapHighlight: (day: number, activityName?: string) => void;
 }) {
-  const [days, setDays] = useState<DayPlan[]>(BALI_PLAN);
   const [customizingDayId, setCustomizingDayId] = useState<number | null>(null);
   const [swapSegment, setSwapSegment] = useState<SegmentId | null>(null);
   const [showBudgetAlert, setShowBudgetAlert] = useState(true);
@@ -864,6 +1413,7 @@ function PlanResultView({
         ? { ...d, activities: d.activities.map((a, j) => j === slotIdx ? { ...a, name: newActivity } : a) }
         : d
     ));
+    onSwapHighlight(dayIdx + 1, newActivity);
   }
 
   function handleSegmentSwap(label: string, price: string) {
@@ -1197,6 +1747,423 @@ function SummaryBubble({ pairs }: { pairs: SummaryPair[] }) {
           </div>
         ))}
       </div>
+    </div>
+  );
+}
+
+/* ── Trip cost breakdown (collapsible) ──────────────────── */
+const BREAKDOWN_ROWS = [
+  {
+    id: "flights",
+    Icon: AirplaneTilt,
+    iconColor: "#1a6af4",
+    title: "Flights",
+    sub: "Delhi ⇌ Bali · May 15 – 19",
+    price: "₹20,396",
+    priceSub: "for 2 adults",
+    detail: [
+      { name: "IndiGo 6E-2241 · Outbound", note: "DEL → DPS · 06:25 · Non-stop · 5h 45m", price: "₹9,798" },
+      { name: "IndiGo 6E-2244 · Return", note: "DPS → DEL · 19:45 · Non-stop · 5h 45m", price: "₹10,598" },
+    ],
+  },
+  {
+    id: "stay",
+    Icon: Bed,
+    iconColor: "#FF4F17",
+    title: "Stay",
+    sub: "Taj Fort Aguada · 4 nights",
+    price: "₹34,000",
+    priceSub: "total",
+    detail: [
+      { name: "Taj Fort Aguada Resort & Spa", note: "5★ · Seminyak · Breakfast incl.", price: "₹8,500/night" },
+    ],
+  },
+  {
+    id: "experiences",
+    Icon: Compass,
+    iconColor: "#14b8a6",
+    title: "Top experiences",
+    sub: "Handpicked activities for you",
+    price: "₹8,698",
+    priceSub: "total",
+    detail: [
+      { name: "Tegallalang trek", note: "Day 2 · 08:00 · Guided", price: "₹2,400" },
+      { name: "Mt. Batur sunrise hike", note: "Day 3 · 04:00 · 2 pax", price: "₹3,200" },
+      { name: "Uluwatu Kecak dance", note: "Day 4 · 17:30 · 1h", price: "₹1,500" },
+      { name: "Balinese spa", note: "Day 5 · 10:30 · 90 min", price: "₹1,598" },
+    ],
+  },
+];
+
+function TripBreakdown() {
+  const [open, setOpen] = useState<string | null>(null);
+  return (
+    <div className="bg-white border border-ct-border rounded-2xl overflow-hidden shadow-sm">
+      <div className="px-4 py-3 border-b border-ct-border-light flex items-center justify-between bg-[#fafbfd]">
+        <div>
+          <p className="text-[11px] uppercase tracking-wide text-ct-text-subtle font-semibold">Trip total</p>
+          <p className="text-[18px] font-bold text-[#1a1a1a] mt-0.5">₹63,094</p>
+        </div>
+        <div className="text-right">
+          <p className="text-[10.5px] text-[#22c55e] font-semibold">₹16,906 under budget</p>
+          <p className="text-[10px] text-ct-text-subtle mt-0.5">of ₹80,000</p>
+        </div>
+      </div>
+      {BREAKDOWN_ROWS.map((row, i) => {
+        const isOpen = open === row.id;
+        return (
+          <div key={row.id} className={cn("border-b border-ct-border-light", i === BREAKDOWN_ROWS.length - 1 && "border-b-0")}>
+            <button
+              onClick={() => setOpen(isOpen ? null : row.id)}
+              className="w-full flex items-center gap-3 px-4 py-3.5 hover:bg-[#fafbfd] transition-colors text-left"
+            >
+              <div className="w-8 h-8 rounded-lg bg-[#fafbfd] border border-ct-border-light flex items-center justify-center shrink-0">
+                <row.Icon size={16} color={row.iconColor} weight="duotone" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-[13px] font-semibold text-[#1a1a1a] leading-tight">{row.title}</p>
+                <p className="text-[11px] text-ct-text-muted mt-0.5 truncate">{row.sub}</p>
+              </div>
+              <div className="text-right shrink-0">
+                <p className="text-[13px] font-bold text-[#1a1a1a]">{row.price}</p>
+                <p className="text-[10px] text-ct-text-subtle">{row.priceSub}</p>
+              </div>
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#ccc" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"
+                className={cn("shrink-0 transition-transform duration-200", isOpen && "rotate-180")}>
+                <polyline points="6 9 12 15 18 9"/>
+              </svg>
+            </button>
+            {isOpen && (
+              <div className="px-4 pb-3 bg-[#fafbfd]">
+                <div className="border-l-2 border-ct-border pl-3 space-y-2">
+                  {row.detail.map((d, di) => (
+                    <div key={di} className="flex items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <p className="text-[12px] font-medium text-[#1a1a1a] leading-snug">{d.name}</p>
+                        <p className="text-[10.5px] text-ct-text-muted mt-0.5">{d.note}</p>
+                      </div>
+                      <p className="text-[11px] text-ct-text-secondary font-semibold shrink-0">{d.price}</p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+/* ── Swap-options carousel ─────────────────────────────── */
+interface SwapOption {
+  name: string; sub: string; desc: string; mentions: number; price: string; img: string; tag?: string;
+}
+
+const STAY_OPTIONS: SwapOption[] = [
+  { name: "Taj Fort Aguada", sub: "Seminyak · 5★", desc: "Heritage cliff-top resort with private beach access.", mentions: 142, price: "₹8,500/nt", img: "https://picsum.photos/seed/stay-taj/400/300", tag: "Current pick" },
+  { name: "W Bali", sub: "Seminyak · 5★", desc: "Design-forward beachfront with rooftop pool and DJ nights.", mentions: 98, price: "₹11,200/nt", img: "https://picsum.photos/seed/stay-w/400/300" },
+  { name: "Alaya Resort Ubud", sub: "Ubud · 4★", desc: "Quiet rice-paddy retreat with traditional Balinese spa.", mentions: 76, price: "₹6,200/nt", img: "https://picsum.photos/seed/stay-alaya/400/300" },
+  { name: "Katamama Suites", sub: "Seminyak · 5★", desc: "Brick-clad boutique above Potato Head Beach Club.", mentions: 54, price: "₹12,400/nt", img: "https://picsum.photos/seed/stay-kata/400/300" },
+];
+
+const ACTIVITY_OPTIONS: SwapOption[] = [
+  { name: "Mt. Batur sunrise trek", sub: "Kintamani · 4h", desc: "Pre-dawn hike to watch the sun rise above the clouds.", mentions: 187, price: "₹3,200/pp", img: "https://picsum.photos/seed/act-batur/400/300", tag: "Current pick" },
+  { name: "Saturday Night Market", sub: "Seminyak · evening", desc: "Live music, global food stalls, and artisan goods.", mentions: 64, price: "Free entry", img: "https://picsum.photos/seed/act-market/400/300" },
+  { name: "Catamaran sunset cruise", sub: "Benoa · 2h", desc: "Sunset sail with onboard tapas and live sax.", mentions: 91, price: "₹2,400/pp", img: "https://picsum.photos/seed/act-cruise/400/300" },
+  { name: "Beach yoga & breakfast", sub: "Canggu · sunrise", desc: "60-min vinyasa on the sand with a vegan brunch after.", mentions: 38, price: "₹1,200/pp", img: "https://picsum.photos/seed/act-yoga/400/300" },
+  { name: "Ubud cycling tour", sub: "Heritage · 3h", desc: "Pedal between rice paddies and temples with a local guide.", mentions: 42, price: "₹1,600/pp", img: "https://picsum.photos/seed/act-cycle/400/300" },
+  { name: "Spice plantation lunch", sub: "Tabanan · 2.5h", desc: "Walk through cardamom and pepper, then a Balinese thali.", mentions: 71, price: "₹1,200/pp", img: "https://picsum.photos/seed/act-spice/400/300" },
+];
+
+function SwapCard({ opt, picked, onPick }: { opt: SwapOption; picked: boolean; onPick: () => void }) {
+  const [hover, setHover] = useState(false);
+  return (
+    <div
+      onMouseEnter={() => setHover(true)}
+      onMouseLeave={() => setHover(false)}
+      className={cn(
+        "shrink-0 w-[200px] rounded-xl overflow-hidden border bg-white transition-all",
+        picked ? "border-[#FF4F17] shadow-md" : "border-ct-border hover:border-[#FF4F17]/60 hover:shadow-md",
+      )}
+    >
+      <div className="relative w-full aspect-[4/3] bg-ct-surface-deep overflow-hidden">
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img src={opt.img} alt={opt.name} className="w-full h-full object-cover" loading="lazy" />
+        {opt.tag && (
+          <span className="absolute top-2 left-2 bg-white/95 text-[9.5px] font-semibold text-[#1a1a1a] px-2 py-0.5 rounded-full shadow-sm">
+            {opt.tag}
+          </span>
+        )}
+        <div className={cn(
+          "absolute top-2 right-2 transition-all duration-200",
+          hover || picked ? "opacity-100 translate-y-0" : "opacity-0 -translate-y-1",
+        )}>
+          <button
+            onClick={onPick}
+            className={cn(
+              "flex items-center gap-1 text-[10.5px] font-semibold px-2.5 py-1 rounded-full shadow-sm transition-colors",
+              picked ? "bg-[#FF4F17] text-white" : "bg-white text-[#1a1a1a] hover:bg-[#FF4F17] hover:text-white",
+            )}
+          >
+            {picked ? (
+              <>
+                <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+                Added
+              </>
+            ) : (
+              <>+ Add to trip</>
+            )}
+          </button>
+        </div>
+        <div className="absolute bottom-2 right-2 bg-black/55 backdrop-blur-sm text-white text-[10px] font-semibold px-2 py-0.5 rounded-full">
+          {opt.price}
+        </div>
+      </div>
+      <div className="p-2.5">
+        <p className="text-[12.5px] font-bold text-[#1a1a1a] leading-tight truncate">{opt.name}</p>
+        <p className="text-[10.5px] text-ct-text-muted mt-0.5 flex items-center gap-1">
+          <MapPin size={9} weight="fill" />
+          {opt.sub}
+        </p>
+        <p className="text-[10.5px] text-ct-text-secondary mt-1.5 leading-snug line-clamp-2">{opt.desc}</p>
+        <div className="flex items-center gap-1 mt-2 pt-2 border-t border-ct-border-light">
+          <div className="flex -space-x-1">
+            {[0, 1, 2].map(i => (
+              <div key={i} className="w-3.5 h-3.5 rounded-full border border-white" style={{ background: ["#FF4F17", "#1a1a1a", "#22c55e"][i] }}/>
+            ))}
+          </div>
+          <p className="text-[9.5px] text-ct-text-muted ml-1">
+            <span className="font-semibold text-ct-text-secondary">{opt.mentions}</span> travellers recommend
+          </p>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function SwapCarousel({
+  kind, onApply,
+}: {
+  kind: SwapKind;
+  onApply: (opt: SwapOption) => void;
+}) {
+  const opts = kind === "stay" ? STAY_OPTIONS : ACTIVITY_OPTIONS;
+  const [picked, setPicked] = useState<string>(opts[0].name);
+  const scrollerRef = useRef<HTMLDivElement>(null);
+  function scroll(dir: 1 | -1) {
+    scrollerRef.current?.scrollBy({ left: dir * 220, behavior: "smooth" });
+  }
+  function handlePick(opt: SwapOption) {
+    setPicked(opt.name);
+    onApply(opt);
+  }
+  return (
+    <div className="bg-white border border-ct-border rounded-2xl p-3.5 shadow-sm">
+      <div className="flex items-center justify-between mb-2.5">
+        <div>
+          <p className="text-[12.5px] font-bold text-[#1a1a1a]">
+            {kind === "stay" ? "Swap your stay" : "Customise your activities"}
+          </p>
+          <p className="text-[10.5px] text-ct-text-muted mt-0.5">
+            {kind === "stay" ? "Tap any option to swap into your itinerary." : "Pick the experiences you'd like in — we'll rebuild the day plan."}
+          </p>
+        </div>
+        <div className="flex items-center gap-1 shrink-0">
+          <button onClick={() => scroll(-1)} className="w-7 h-7 rounded-full border border-ct-border flex items-center justify-center hover:border-[#FF4F17] hover:text-[#FF4F17] text-ct-text-muted transition-colors">
+            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
+          </button>
+          <button onClick={() => scroll(1)} className="w-7 h-7 rounded-full border border-ct-border flex items-center justify-center hover:border-[#FF4F17] hover:text-[#FF4F17] text-ct-text-muted transition-colors">
+            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+          </button>
+        </div>
+      </div>
+      <div
+        ref={scrollerRef}
+        className="flex gap-2.5 overflow-x-auto pb-1 -mx-1 px-1 snap-x snap-mandatory"
+        style={{ scrollbarWidth: "none" }}
+      >
+        {opts.map(opt => (
+          <div key={opt.name} className="snap-start">
+            <SwapCard opt={opt} picked={picked === opt.name} onPick={() => handlePick(opt)} />
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+/* ── Rich visual card responses ─────────────────────────── */
+interface RichCard {
+  img: string;
+  title: string;
+  sub: string;
+  desc: string;
+  meta?: string;
+  price?: string;
+  badge?: string;
+}
+
+const SAVINGS_CARDS: RichCard[] = [
+  { img: "https://picsum.photos/seed/save-hotel/300/220", title: "Switch to Alaya Resort Ubud", sub: "4★ · pool villa · 4 nights", desc: "Quiet rice-paddy retreat ten minutes from Ubud centre. Same breakfast inclusion.", meta: "Currently: Taj Fort Aguada", price: "− ₹9,200", badge: "Save ₹9,200" },
+  { img: "https://picsum.photos/seed/save-flight/300/220", title: "Switch to AirAsia I5-764", sub: "1 stop · 7h 20m · Outbound", desc: "Same-day arrival, one short layover at Kuala Lumpur.", meta: "Currently: IndiGo non-stop", price: "− ₹2,598", badge: "Save ₹2,598" },
+  { img: "https://picsum.photos/seed/save-activity/300/220", title: "Drop the catamaran cruise", sub: "Day 4 · 2h sunset", desc: "Replace with a free Jimbaran beach evening — same vibe, no ticket cost.", meta: "Optional removal", price: "− ₹2,400", badge: "Save ₹2,400" },
+];
+
+const ADVENTURE_CARDS: RichCard[] = [
+  { img: "https://picsum.photos/seed/adv-rafting/300/220", title: "Ayung river white-water rafting", sub: "Ubud · 2.5h · Class II–III", desc: "12km of rapids through jungle gorges, lunch included.", meta: "Recommended for Day 2", price: "₹2,200/pp" },
+  { img: "https://picsum.photos/seed/adv-atv/300/220", title: "Jungle ATV quad-bike tour", sub: "Payangan · 2h", desc: "Rip through paddy trails, river crossings and muddy tracks.", meta: "Good fit for Day 3", price: "₹3,400/pp" },
+  { img: "https://picsum.photos/seed/adv-canyon/300/220", title: "Aling-Aling waterfall canyoning", sub: "North Bali · half-day", desc: "Slide and jump down four natural waterfalls with a guide.", meta: "Add to Day 3", price: "₹2,800/pp" },
+  { img: "https://picsum.photos/seed/adv-surf/300/220", title: "Uluwatu surf lesson", sub: "Padang Padang · 2h", desc: "Beginner-friendly reef break with board and rashguard.", meta: "Add to Day 4", price: "₹1,800/pp" },
+];
+
+const CAFE_CARDS: RichCard[] = [
+  { img: "https://picsum.photos/seed/cafe-revolver/300/220", title: "Revolver Espresso", sub: "Seminyak · ★ 4.7", desc: "Saloon-style café known for the best flat white on the island.", meta: "Order: short black + banana bread", price: "~₹450" },
+  { img: "https://picsum.photos/seed/cafe-yellow/300/220", title: "Yellow Flower Café", sub: "Ubud · ★ 4.8", desc: "Hilltop garden café with jungle views and a vegan brunch menu.", meta: "Order: nasi campur + turmeric latte", price: "~₹600" },
+  { img: "https://picsum.photos/seed/cafe-crate/300/220", title: "Crate Café", sub: "Canggu · ★ 4.6", desc: "Surfer-favourite spot with huge portions and €2 coffees.", meta: "Order: big breakfast + cold brew", price: "~₹500" },
+  { img: "https://picsum.photos/seed/cafe-koral/300/220", title: "Kafe Batan Waru", sub: "Ubud · ★ 4.5", desc: "Heritage Indonesian recipes in a colonial-style courtyard.", meta: "Order: bebek betutu (roasted duck)", price: "~₹900" },
+  { img: "https://picsum.photos/seed/cafe-hideout/300/220", title: "The Shady Shack", sub: "Canggu · ★ 4.7", desc: "All-vegetarian café overlooking the rice fields.", meta: "Order: epic salad bowl", price: "~₹550" },
+];
+
+const PACE_CARDS: RichCard[] = [
+  { img: "https://picsum.photos/seed/pace-spa/300/220", title: "Add a spa rest morning · Day 2", sub: "Ubud · 09:00", desc: "Replace the trek with a 90-min Balinese massage and breakfast in bed.", meta: "Frees 4h of buffer", price: "+ ₹1,800/pp" },
+  { img: "https://picsum.photos/seed/pace-pool/300/220", title: "Add a pool day · Day 3", sub: "Hotel pool · all day", desc: "Skip the volcano hike and unwind by the resort lagoon pool.", meta: "Frees 6h of buffer", price: "Included in stay" },
+  { img: "https://picsum.photos/seed/pace-late/300/220", title: "Late starts every day", sub: "Push 1st activity to 10:00", desc: "Move morning blocks back so you never wake before 09:00.", meta: "Re-times all 5 days", price: "Free to apply" },
+];
+
+const CARD_SETS: Record<CardSet, { title: string; sub: string; data: RichCard[]; cta: string }> = {
+  savings: {
+    title: "Three swaps that save you ₹14,200",
+    sub: "Pick any to apply — your itinerary stays intact.",
+    data: SAVINGS_CARDS,
+    cta: "Apply",
+  },
+  adventure: {
+    title: "More adventure, on-route",
+    sub: "Each option fits a free slot in your existing days.",
+    data: ADVENTURE_CARDS,
+    cta: "Add to trip",
+  },
+  cafes: {
+    title: "Top-rated cafés in Bali",
+    sub: "Highest-rated spots travellers add to Bali itineraries.",
+    data: CAFE_CARDS,
+    cta: "Add stop",
+  },
+  pace: {
+    title: "Three ways to slow it down",
+    sub: "Pick what fits — I'll re-time the days on the map.",
+    data: PACE_CARDS,
+    cta: "Apply",
+  },
+};
+
+function RichCards({ set, onApply }: { set: CardSet; onApply: (card: RichCard) => void }) {
+  const cfg = CARD_SETS[set];
+  const [picked, setPicked] = useState<string | null>(null);
+  const scrollerRef = useRef<HTMLDivElement>(null);
+  function scroll(dir: 1 | -1) {
+    scrollerRef.current?.scrollBy({ left: dir * 240, behavior: "smooth" });
+  }
+  function handlePick(card: RichCard) {
+    setPicked(card.title);
+    onApply(card);
+  }
+  return (
+    <div className="bg-white border border-ct-border rounded-2xl p-3.5 shadow-sm">
+      <div className="flex items-center justify-between mb-2.5 gap-2">
+        <div className="min-w-0">
+          <p className="text-[12.5px] font-bold text-[#1a1a1a]">{cfg.title}</p>
+          <p className="text-[10.5px] text-ct-text-muted mt-0.5">{cfg.sub}</p>
+        </div>
+        <div className="flex items-center gap-1 shrink-0">
+          <button onClick={() => scroll(-1)} className="w-7 h-7 rounded-full border border-ct-border flex items-center justify-center hover:border-[#FF4F17] hover:text-[#FF4F17] text-ct-text-muted transition-colors">
+            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
+          </button>
+          <button onClick={() => scroll(1)} className="w-7 h-7 rounded-full border border-ct-border flex items-center justify-center hover:border-[#FF4F17] hover:text-[#FF4F17] text-ct-text-muted transition-colors">
+            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+          </button>
+        </div>
+      </div>
+      <div ref={scrollerRef} className="flex gap-2.5 overflow-x-auto pb-1 -mx-1 px-1 snap-x snap-mandatory" style={{ scrollbarWidth: "none" }}>
+        {cfg.data.map(card => {
+          const isPicked = picked === card.title;
+          return (
+            <div key={card.title} className="snap-start shrink-0 w-[220px]">
+              <div className={cn(
+                "rounded-xl overflow-hidden border bg-white transition-all h-full flex flex-col",
+                isPicked ? "border-[#FF4F17] shadow-md" : "border-ct-border hover:border-[#FF4F17]/60 hover:shadow-md",
+              )}>
+                <div className="relative w-full aspect-[4/3] bg-ct-surface-deep overflow-hidden">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src={card.img} alt={card.title} className="w-full h-full object-cover" loading="lazy" />
+                  {card.badge && (
+                    <span className="absolute top-2 left-2 bg-[#22c55e] text-white text-[9.5px] font-bold px-2 py-0.5 rounded-full shadow-sm">
+                      {card.badge}
+                    </span>
+                  )}
+                  {card.price && (
+                    <div className="absolute bottom-2 right-2 bg-black/55 backdrop-blur-sm text-white text-[10px] font-semibold px-2 py-0.5 rounded-full">
+                      {card.price}
+                    </div>
+                  )}
+                </div>
+                <div className="p-2.5 flex-1 flex flex-col">
+                  <p className="text-[12.5px] font-bold text-[#1a1a1a] leading-tight">{card.title}</p>
+                  <p className="text-[10.5px] text-ct-text-muted mt-0.5 flex items-center gap-1">
+                    <MapPin size={9} weight="fill" />
+                    {card.sub}
+                  </p>
+                  <p className="text-[10.5px] text-ct-text-secondary mt-1.5 leading-snug line-clamp-2">{card.desc}</p>
+                  {card.meta && (
+                    <p className="text-[9.5px] text-ct-text-muted mt-1.5 italic line-clamp-1">{card.meta}</p>
+                  )}
+                  <button
+                    onClick={() => handlePick(card)}
+                    className={cn(
+                      "mt-2 w-full text-[10.5px] font-semibold py-1.5 rounded-full transition-colors",
+                      isPicked
+                        ? "bg-[#FF4F17] text-white"
+                        : "bg-ct-surface-subtle text-[#1a1a1a] border border-ct-border hover:bg-[#FF4F17] hover:text-white hover:border-[#FF4F17]",
+                    )}
+                  >
+                    {isPicked ? "✓ Applied" : cfg.cta}
+                  </button>
+                </div>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+/* ── Quick replies (suggestion chips above input) ─────── */
+const QUICK_REPLIES = [
+  "Make it cheaper",
+  "Add more adventure",
+  "Best cafes in Bali?",
+  "Customise activities",
+  "Swap the stay",
+  "Slower pace",
+];
+
+function QuickReplies({ onPick }: { onPick: (s: string) => void }) {
+  return (
+    <div
+      className="flex items-center gap-1.5 overflow-x-auto pb-2 px-0.5"
+      style={{ scrollbarWidth: "none" }}
+    >
+      {QUICK_REPLIES.map(s => (
+        <button
+          key={s}
+          onClick={() => onPick(s)}
+          className="shrink-0 text-[12px] font-medium text-ct-text-secondary bg-white border border-ct-border hover:border-[#FF4F17] hover:text-[#FF4F17] hover:bg-[#fff3ef] px-3 py-1.5 rounded-full transition-colors whitespace-nowrap"
+        >
+          {s}
+        </button>
+      ))}
     </div>
   );
 }
@@ -1789,79 +2756,169 @@ function ResultsInput({ onSend }: { onSend: (txt: string) => void }) {
   );
 }
 
-/* ── Map panel ───────────────────────────────────────────── */
-function MapPanel({ selectedDay, onSelectDay }: { selectedDay: number; onSelectDay: (day: number) => void }) {
-  const mapDays = BALI_PLAN.map(d => ({ day: d.day, location: d.location, lat: d.lat, lng: d.lng, img: d.img, tag: d.tag }));
-  const activeDay = BALI_PLAN.find(d => d.day === selectedDay);
-  const [showDetail, setShowDetail] = useState(false);
+/* ── Place detail panel (tabbed) ─────────────────────────── */
+type DetailTab = "overview" | "guides" | "stays" | "restaurants" | "things" | "reviews";
 
-  function handleDaySelect(day: number) {
-    onSelectDay(day);
-    setShowDetail(true);
-  }
+function PlaceDetailPanel({
+  day, tab, setTab, onClose, onSelectOtherDay, otherDays,
+}: {
+  day: DayPlan;
+  tab: DetailTab;
+  setTab: (t: DetailTab) => void;
+  onClose: () => void;
+  onSelectOtherDay: (day: number) => void;
+  otherDays: DayPlan[];
+}) {
+  const [liked, setLiked] = useState(false);
+  const [added, setAdded] = useState(true); // already in trip
+  const detail = day.detail;
+  const gallery = detail.gallery ?? [day.img];
+  const region = detail.region ?? "Bali, Indonesia";
+  const mentioned = detail.mentionedBy ?? 24;
+  const avatars = detail.recommenderAvatars ?? detail.reviews.map(r => r.avatar);
+
+  const tabs: { id: DetailTab; label: string }[] = [
+    { id: "overview", label: "Overview" },
+    { id: "guides", label: "Guides" },
+    { id: "stays", label: "Stays" },
+    { id: "restaurants", label: "Restaurants" },
+    { id: "things", label: "Things to do" },
+    { id: "reviews", label: "Reviews" },
+  ];
 
   return (
-    <div className="w-[380px] shrink-0 border-l border-ct-border flex flex-col bg-white">
-      {/* Map header */}
-      <div className="flex items-center justify-between px-4 py-3 border-b border-ct-border-light shrink-0">
-        <div className="flex items-center gap-2">
-          <div className="w-6 h-6 rounded-lg bg-ct-action-active flex items-center justify-center">
-            <MapPin size={13} color="white" weight="fill" />
-          </div>
-          <span className="text-[14px] font-bold text-[#1a1a1a]">Trip Map</span>
-        </div>
-        {showDetail ? (
+    <div className="flex-1 overflow-y-auto bg-white" style={{ scrollbarWidth: "thin" }}>
+      {/* Hero */}
+      <div className="relative h-[220px] shrink-0 bg-ct-surface-deep">
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img src={day.img} alt={day.location} className="w-full h-full object-cover" />
+        <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/20 to-transparent" />
+
+        {/* Top action row */}
+        <div className="absolute top-3 left-3 right-3 flex items-center justify-between">
           <button
-            onClick={() => setShowDetail(false)}
-            className="text-[11px] text-ct-text-muted hover:text-[#1a1a1a] transition-colors flex items-center gap-1"
+            onClick={onClose}
+            className="w-8 h-8 rounded-full bg-white/95 hover:bg-white text-[#1a1a1a] flex items-center justify-center shadow-sm transition-colors"
+            aria-label="Close"
           >
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><polyline points="15 18 9 12 15 6"/></svg>
-            Map
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
           </button>
-        ) : (
-          <span className="text-[11px] text-ct-text-subtle">Bali, Indonesia</span>
-        )}
+          <div className="flex items-center gap-1.5">
+            <button
+              onClick={() => setLiked(v => !v)}
+              className={cn(
+                "h-8 px-3 rounded-full flex items-center gap-1.5 text-[11px] font-semibold shadow-sm transition-colors",
+                liked ? "bg-[#FF4F17] text-white" : "bg-white/95 text-[#1a1a1a] hover:bg-white",
+              )}
+            >
+              <svg width="12" height="12" viewBox="0 0 24 24" fill={liked ? "currentColor" : "none"} stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>
+              {liked ? "Saved" : "Save"}
+            </button>
+            <button
+              onClick={() => setAdded(v => !v)}
+              className={cn(
+                "h-8 px-3 rounded-full flex items-center gap-1.5 text-[11px] font-semibold shadow-sm transition-colors",
+                added ? "bg-white/95 text-[#1a1a1a] hover:bg-white" : "bg-[#FF4F17] text-white",
+              )}
+            >
+              {added ? (
+                <><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg> In trip</>
+              ) : (
+                <>+ Add to trip</>
+              )}
+            </button>
+            <button className="w-8 h-8 rounded-full bg-white/95 hover:bg-white text-[#1a1a1a] flex items-center justify-center shadow-sm transition-colors">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg>
+            </button>
+          </div>
+        </div>
+
+        {/* Title */}
+        <div className="absolute bottom-3 left-4 right-4 flex items-end justify-between gap-3">
+          <div className="min-w-0">
+            <span className="inline-block bg-[#FF4F17] text-white text-[9.5px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full mb-1.5">Day {day.day}</span>
+            <p className="text-white text-[22px] font-bold leading-tight">{day.location}</p>
+            <p className="text-white/80 text-[11px] mt-0.5 flex items-center gap-1">
+              <svg width="9" height="9" viewBox="0 0 24 24" fill="white"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7z"/></svg>
+              {region}
+            </p>
+          </div>
+          <button className="shrink-0 text-[10.5px] font-semibold text-white bg-black/40 backdrop-blur-sm border border-white/30 px-2.5 py-1 rounded-full hover:bg-black/55 transition-colors whitespace-nowrap">
+            Show all photos
+          </button>
+        </div>
       </div>
 
-      {showDetail && activeDay ? (
-        /* ── Rich place detail panel ─── */
-        <div className="flex-1 overflow-y-auto" style={{ scrollbarWidth: "thin" }}>
-          {/* Hero */}
-          <div className="relative h-[160px] shrink-0">
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src={activeDay.img} alt={activeDay.location} className="w-full h-full object-cover" />
-            <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent" />
-            <div className="absolute bottom-0 left-0 right-0 px-4 py-3">
-              <p className="text-white text-[18px] font-bold leading-tight">{activeDay.location}</p>
-              <div className="flex items-center gap-2 mt-0.5">
-                <svg width="10" height="10" viewBox="0 0 24 24" fill="white" opacity="0.7"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7z"/></svg>
-                <span className="text-white/70 text-[11px]">Bali, Indonesia · Day {activeDay.day}</span>
-              </div>
-            </div>
-            <div className="absolute top-3 right-3 flex items-center gap-1.5 bg-white/20 backdrop-blur-sm rounded-full px-2.5 py-1">
-              <span className="text-white text-[10.5px]">{activeDay.detail.weather}</span>
-              <span className="text-white font-bold text-[10.5px]">{activeDay.detail.temp}</span>
-            </div>
-          </div>
+      {/* Mentioned-by row */}
+      <div className="px-4 py-3 border-b border-ct-border-light flex items-center gap-2.5">
+        <div className="flex -space-x-1.5">
+          {avatars.slice(0, 4).map((a, i) => (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img key={i} src={a} alt="" className="w-7 h-7 rounded-full border-2 border-white object-cover" />
+          ))}
+        </div>
+        <div className="min-w-0 flex-1">
+          <p className="text-[11.5px] text-[#1a1a1a]">
+            <span className="font-semibold">{detail.reviews[0]?.author ?? "Mohammed Alhrabi"}</span>
+            <span className="text-ct-text-muted">, {detail.reviews[1]?.author ?? "Waqar Alam"} and </span>
+            <span className="font-semibold">{mentioned - 2} others</span>
+            <span className="text-ct-text-muted"> mentioned this place</span>
+          </p>
+        </div>
+        <button className="shrink-0 text-[10.5px] font-semibold text-[#1a1a1a] bg-white border border-ct-border px-2.5 py-1 rounded-full hover:bg-ct-surface-subtle transition-colors flex items-center gap-1 whitespace-nowrap">
+          Recommend stays
+        </button>
+      </div>
 
-          <div className="px-4 py-4 space-y-4">
-            {/* Description */}
-            <p className="text-[12px] text-ct-text-secondary leading-relaxed">{activeDay.detail.description}</p>
+      {/* Tabs */}
+      <div className="sticky top-0 z-10 bg-white border-b border-ct-border-light">
+        <div className="flex gap-4 px-4 overflow-x-auto" style={{ scrollbarWidth: "none" }}>
+          {tabs.map(t => (
+            <button
+              key={t.id}
+              onClick={() => setTab(t.id)}
+              className={cn(
+                "py-3 text-[12px] font-semibold whitespace-nowrap border-b-2 transition-colors -mb-px",
+                tab === t.id
+                  ? "border-[#FF4F17] text-[#1a1a1a]"
+                  : "border-transparent text-ct-text-muted hover:text-[#1a1a1a]",
+              )}
+            >
+              {t.label}
+            </button>
+          ))}
+        </div>
+      </div>
 
-            {/* Highlights */}
+      {/* Tab content */}
+      <div className="px-4 py-4">
+        {tab === "overview" && (
+          <div className="space-y-4">
+            <p className="text-[12.5px] text-ct-text-secondary leading-relaxed">{detail.description}</p>
             <div className="flex flex-wrap gap-1.5">
-              {activeDay.detail.highlights.map((h, i) => (
-                <span key={i} className="bg-[#f5f5f5] text-[#555] text-[10px] font-medium px-2.5 py-1 rounded-full border border-[#ebebeb]">{h}</span>
+              {detail.highlights.map((h, i) => (
+                <span key={i} className="bg-ct-surface-subtle text-ct-text-secondary text-[10px] font-medium px-2.5 py-1 rounded-full border border-ct-border-light">{h}</span>
               ))}
             </div>
-
-            {/* Activities for this day */}
+            {gallery.length > 1 && (
+              <div>
+                <p className="text-[10px] font-bold text-ct-text-subtle uppercase tracking-widest mb-2">Photos</p>
+                <div className="grid grid-cols-3 gap-1.5">
+                  {gallery.slice(0, 6).map((g, i) => (
+                    <div key={i} className="relative aspect-square rounded-lg overflow-hidden bg-ct-surface-deep">
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img src={g} alt="" className="w-full h-full object-cover hover:scale-105 transition-transform duration-300" />
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
             <div>
               <p className="text-[10px] font-bold text-ct-text-subtle uppercase tracking-widest mb-2">Today&apos;s plan</p>
               <div className="space-y-2">
-                {activeDay.activities.map((act, i) => (
-                  <div key={i} className="flex items-center gap-2.5 px-3 py-2 bg-[#fafafa] rounded-xl border border-[#f0f0f0]">
-                    <div className="w-6 h-6 rounded-lg bg-white border border-[#ebebeb] flex items-center justify-center shrink-0">
+                {day.activities.map((act, i) => (
+                  <div key={i} className="flex items-center gap-2.5 px-3 py-2 bg-ct-surface-raised rounded-xl border border-ct-border-light">
+                    <div className="w-6 h-6 rounded-lg bg-white border border-ct-border-light flex items-center justify-center shrink-0">
                       <ActivityIcon type={act.type} size={12} />
                     </div>
                     <div className="min-w-0 flex-1">
@@ -1872,40 +2929,13 @@ function MapPanel({ selectedDay, onSelectDay }: { selectedDay: number; onSelectD
                 ))}
               </div>
             </div>
-
-            {/* Reviews */}
             <div>
-              <div className="flex items-center justify-between mb-2">
-                <p className="text-[10px] font-bold text-ct-text-subtle uppercase tracking-widest">Reviews</p>
-                <div className="flex items-center gap-1">
-                  <StarRating rating={5} />
-                  <span className="text-[10px] font-bold text-[#1a1a1a]">4.8</span>
-                </div>
-              </div>
-              <div className="space-y-3">
-                {activeDay.detail.reviews.map((rev, i) => (
-                  <div key={i} className="bg-[#fafafa] border border-[#f0f0f0] rounded-xl p-3">
-                    <div className="flex items-center gap-2 mb-1.5">
-                      {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img src={rev.avatar} alt={rev.author} className="w-6 h-6 rounded-full object-cover border border-[#ebebeb]" />
-                      <span className="text-[11px] font-bold text-[#1a1a1a]">{rev.author}</span>
-                      <StarRating rating={rev.rating} />
-                      <span className="text-[9.5px] text-ct-text-subtle ml-auto">{rev.date}</span>
-                    </div>
-                    <p className="text-[11px] text-ct-text-secondary leading-relaxed">&ldquo;{rev.text}&rdquo;</p>
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            {/* Other days CTA */}
-            <div>
-              <p className="text-[10px] font-bold text-ct-text-subtle uppercase tracking-widest mb-2">Other stops</p>
+              <p className="text-[10px] font-bold text-ct-text-subtle uppercase tracking-widest mb-2">Other stops on this trip</p>
               <div className="flex gap-1.5 flex-wrap">
-                {BALI_PLAN.filter(d => d.day !== selectedDay).map(d => (
+                {otherDays.map(d => (
                   <button
                     key={d.day}
-                    onClick={() => handleDaySelect(d.day)}
+                    onClick={() => onSelectOtherDay(d.day)}
                     className="flex items-center gap-1.5 text-[10.5px] font-semibold text-ct-text-secondary border border-ct-border px-2.5 py-1 rounded-full hover:bg-ct-surface-subtle transition-colors"
                   >
                     <div className="w-4 h-4 rounded-full bg-[#FF4F17] flex items-center justify-center text-white text-[8px] font-bold shrink-0">{d.day}</div>
@@ -1915,36 +2945,571 @@ function MapPanel({ selectedDay, onSelectDay }: { selectedDay: number; onSelectD
               </div>
             </div>
           </div>
+        )}
+
+        {tab === "guides" && (
+          <div className="space-y-3">
+            {(detail.guides ?? []).map((g, i) => (
+              <div key={i} className="flex gap-3 p-2.5 rounded-xl border border-ct-border-light hover:border-ct-border-medium transition-colors cursor-pointer">
+                <div className="relative w-[88px] aspect-[4/3] rounded-lg overflow-hidden bg-ct-surface-deep shrink-0">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src={g.img} alt={g.title} className="w-full h-full object-cover" />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <p className="text-[10px] font-bold text-[#FF4F17] uppercase tracking-wider">Guide · {g.readTime}</p>
+                  <p className="text-[12.5px] font-semibold text-[#1a1a1a] mt-0.5 leading-snug line-clamp-2">{g.title}</p>
+                  <p className="text-[10.5px] text-ct-text-muted mt-1">by {g.author}</p>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {tab === "stays" && (
+          <div className="space-y-3">
+            {(detail.stays ?? []).map((s, i) => (
+              <div key={i} className="flex gap-3 p-2.5 rounded-xl border border-ct-border-light hover:border-ct-border-medium transition-colors">
+                <div className="relative w-[88px] aspect-[4/3] rounded-lg overflow-hidden bg-ct-surface-deep shrink-0">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src={s.img} alt={s.name} className="w-full h-full object-cover" />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <p className="text-[12.5px] font-semibold text-[#1a1a1a] leading-snug">{s.name}</p>
+                  <p className="text-[10.5px] text-ct-text-muted mt-0.5">{s.sub}</p>
+                  <div className="flex items-center gap-2 mt-1.5">
+                    <div className="flex items-center gap-1">
+                      <svg width="10" height="10" viewBox="0 0 24 24" fill="#FF4F17"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>
+                      <span className="text-[11px] font-bold text-[#1a1a1a]">{s.rating}</span>
+                    </div>
+                    <span className="text-[10.5px] text-ct-text-muted">·</span>
+                    <span className="text-[11px] font-bold text-[#1a1a1a]">{s.price}</span>
+                  </div>
+                </div>
+                <button className="self-center shrink-0 text-[10.5px] font-semibold text-[#1a1a1a] border border-ct-border px-2.5 py-1 rounded-full hover:bg-ct-surface-subtle transition-colors">
+                  View
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {tab === "restaurants" && (
+          <div className="space-y-3">
+            {(detail.restaurants ?? []).map((r, i) => (
+              <div key={i} className="flex gap-3 p-2.5 rounded-xl border border-ct-border-light hover:border-ct-border-medium transition-colors">
+                <div className="relative w-[88px] aspect-[4/3] rounded-lg overflow-hidden bg-ct-surface-deep shrink-0">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src={r.img} alt={r.name} className="w-full h-full object-cover" />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <p className="text-[12.5px] font-semibold text-[#1a1a1a] leading-snug">{r.name}</p>
+                  <p className="text-[10.5px] text-ct-text-muted mt-0.5">{r.cuisine}</p>
+                  <div className="flex items-center gap-2 mt-1.5">
+                    <div className="flex items-center gap-1">
+                      <svg width="10" height="10" viewBox="0 0 24 24" fill="#FF4F17"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>
+                      <span className="text-[11px] font-bold text-[#1a1a1a]">{r.rating}</span>
+                    </div>
+                    <span className="text-[10.5px] text-ct-text-muted">· {r.price}</span>
+                  </div>
+                </div>
+                <button className="self-center shrink-0 text-[10.5px] font-semibold text-[#1a1a1a] border border-ct-border px-2.5 py-1 rounded-full hover:bg-ct-surface-subtle transition-colors">
+                  Book
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {tab === "things" && (
+          <div className="grid grid-cols-2 gap-2.5">
+            {(detail.thingsToDo ?? []).map((t, i) => (
+              <div key={i} className="rounded-xl overflow-hidden border border-ct-border-light hover:border-ct-border-medium transition-colors group cursor-pointer">
+                <div className="relative aspect-[4/3] bg-ct-surface-deep overflow-hidden">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src={t.img} alt={t.name} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" />
+                </div>
+                <div className="p-2">
+                  <p className="text-[11.5px] font-semibold text-[#1a1a1a] leading-tight line-clamp-2">{t.name}</p>
+                  <p className="text-[10px] text-ct-text-muted mt-0.5">{t.sub}</p>
+                  <p className="text-[9.5px] text-ct-text-subtle mt-1">
+                    <span className="font-semibold text-ct-text-secondary">{t.mentions}</span> recommend
+                  </p>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {tab === "reviews" && (
+          <div className="space-y-3">
+            <div className="flex items-center gap-2 mb-1">
+              <StarRating rating={5} />
+              <span className="text-[14px] font-bold text-[#1a1a1a]">4.8</span>
+              <span className="text-[11px] text-ct-text-muted">· {detail.reviews.length * 47} reviews on this place</span>
+            </div>
+            {detail.reviews.map((rev, i) => (
+              <div key={i} className="bg-ct-surface-raised border border-ct-border-light rounded-xl p-3">
+                <div className="flex items-center gap-2 mb-1.5">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src={rev.avatar} alt={rev.author} className="w-6 h-6 rounded-full object-cover border border-ct-border-light" />
+                  <span className="text-[11.5px] font-bold text-[#1a1a1a]">{rev.author}</span>
+                  <StarRating rating={rev.rating} />
+                  <span className="text-[9.5px] text-ct-text-subtle ml-auto">{rev.date}</span>
+                </div>
+                <p className="text-[11.5px] text-ct-text-secondary leading-relaxed">&ldquo;{rev.text}&rdquo;</p>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+/* ── Stop detail panel (per-pin details) ─────────────────── */
+type StopKindMeta = {
+  label: string;
+  tagline: string;
+  Icon: React.ComponentType<{ size?: number; className?: string; weight?: "regular" | "fill" | "bold" }>;
+};
+
+function getStopKindMeta(type: ActivityType): StopKindMeta {
+  switch (type) {
+    case "sunset":   return { label: "Sunset point",      tagline: "Best at golden hour — arrive an hour before drop.",         Icon: SunHorizon };
+    case "trek":     return { label: "Viewpoint & trek",  tagline: "Elevated panorama. Bring layers, water and grip shoes.",    Icon: Mountains };
+    case "nature":   return { label: "Nature spot",       tagline: "Lush trail or sanctuary. Move slowly, stay on the path.",   Icon: Tree };
+    case "food":     return { label: "Restaurant",        tagline: "Reservation recommended. Ask for the chef's special.",      Icon: ForkKnife };
+    case "beach":    return { label: "Beach",             tagline: "Calmest in the late afternoon. Watch the rip current.",     Icon: Waves };
+    case "culture":  return { label: "Culture & temple",  tagline: "Modest dress required. A sarong is usually provided.",      Icon: Church };
+    case "dance":    return { label: "Performance",       tagline: "Open seating. Arrive 20 minutes early for a good row.",     Icon: MusicNote };
+    case "shopping": return { label: "Shopping",          tagline: "Bargain politely — start at about 40% of the asking price.",Icon: ShoppingBag };
+    case "spa":      return { label: "Spa",               tagline: "Book ahead. Allow 30 min buffer for tea and cool-down.",    Icon: Sparkle };
+    case "walk":     return { label: "Walk",              tagline: "Easy stroll. Mornings are quieter and cooler.",             Icon: Footprints };
+    case "hotel":    return { label: "Stay",              tagline: "Show your booking at reception. Late check-in is fine.",    Icon: Bed };
+    case "flight":   return { label: "Travel",            tagline: "Reach the gate 90 min before departure.",                   Icon: AirplaneTilt };
+  }
+  return { label: "Stop", tagline: "Tap for the full guide.", Icon: Compass };
+}
+
+function StopDetailPanel({
+  activity, day, onClose, onPrev, onNext, hasPrev, hasNext,
+}: {
+  activity: DayActivity;
+  day: DayPlan;
+  onClose: () => void;
+  onPrev: () => void;
+  onNext: () => void;
+  hasPrev: boolean;
+  hasNext: boolean;
+}) {
+  const meta = getStopKindMeta(activity.type);
+  const stop = STOP_DETAILS[activity.name];
+  const description = stop?.description ?? activity.blurb ?? meta.tagline;
+  const facts: StopFact[] = stop?.facts ?? [
+    ...(activity.time ? [{ label: "Time", value: activity.time }] : []),
+    { label: "Type", value: meta.label },
+    { label: "Day", value: `Day ${day.day}` },
+    { label: "Area", value: day.location },
+  ];
+  const gallery = stop?.gallery ?? (activity.img ? [activity.img] : []);
+  const mentioned = stop?.mentionedBy ?? activity.mentionedBy ?? 24;
+
+  type ListSection = { label: string; items: string[]; Icon: React.ComponentType<{ size?: number; className?: string }> };
+  const sections: ListSection[] = [];
+  if (stop?.bestVantage)       sections.push({ label: "Best vantage",        items: [stop.bestVantage],   Icon: SunHorizon });
+  if (stop?.mustOrder?.length) sections.push({ label: "Must order",          items: stop.mustOrder,       Icon: ForkKnife });
+  if (stop?.rules?.length)     sections.push({ label: "Etiquette",           items: stop.rules,           Icon: Church });
+  if (stop?.whatToBring?.length) sections.push({ label: "What to bring",     items: stop.whatToBring,     Icon: Backpack });
+  if (stop?.amenities?.length) sections.push({ label: "Amenities",           items: stop.amenities,       Icon: Sparkle });
+  if (stop?.whatToBuy?.length) sections.push({ label: "What to buy",         items: stop.whatToBuy,       Icon: ShoppingBag });
+  if (stop?.showtimes?.length) sections.push({ label: "Showtimes",           items: stop.showtimes,       Icon: CalendarBlank });
+  if (stop?.tips?.length)      sections.push({ label: "Insider tips",        items: stop.tips,            Icon: Sparkle });
+
+  return (
+    <div className="flex-1 flex flex-col min-h-0 bg-white">
+      {/* Hero */}
+      <div className="relative shrink-0 h-[200px] bg-ct-surface-deep overflow-hidden">
+        {gallery[0] && (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img src={gallery[0]} alt={activity.name} className="w-full h-full object-cover" />
+        )}
+        <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-black/10 to-black/20" />
+        <button
+          onClick={onClose}
+          className="absolute top-3 left-3 flex items-center gap-1.5 bg-white/95 backdrop-blur text-[11px] font-semibold text-[#1a1a1a] px-2.5 py-1.5 rounded-full shadow-sm hover:bg-white transition-colors"
+        >
+          <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><polyline points="15 18 9 12 15 6"/></svg>
+          Map
+        </button>
+        <div className="absolute top-3 right-3 flex items-center gap-1.5">
+          <span className="inline-flex items-center gap-1 bg-white/95 backdrop-blur text-[10px] font-bold uppercase tracking-wider text-[#1a1a1a] px-2.5 py-1 rounded-full shadow-sm">
+            <meta.Icon size={11} weight="bold" />
+            {meta.label}
+          </span>
         </div>
+        <div className="absolute left-4 right-4 bottom-3 text-white">
+          <p className="text-[10px] font-semibold uppercase tracking-wider text-white/80">
+            Day {day.day} · Stop · {activity.time}
+          </p>
+          <p className="text-[18px] font-bold leading-tight mt-0.5">{activity.name}</p>
+          <p className="text-[11.5px] text-white/85 mt-0.5">{day.location}</p>
+        </div>
+      </div>
+
+      {/* Body */}
+      <div className="flex-1 overflow-y-auto" style={{ scrollbarWidth: "thin" }}>
+        <div className="px-4 pt-4 pb-5 space-y-5">
+          <p className="text-[12.5px] text-ct-text-secondary leading-relaxed">{description}</p>
+
+          {/* Facts grid */}
+          {facts.length > 0 && (
+            <div className="grid grid-cols-2 gap-2">
+              {facts.map((f, i) => (
+                <div key={i} className="rounded-xl border border-ct-border-light bg-ct-surface-raised px-3 py-2">
+                  <p className="text-[9.5px] font-semibold uppercase tracking-wider text-ct-text-subtle">{f.label}</p>
+                  <p className="text-[12px] font-semibold text-[#1a1a1a] mt-0.5">{f.value}</p>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* Gallery */}
+          {gallery.length > 1 && (
+            <div>
+              <p className="text-[10px] font-semibold uppercase tracking-wider text-ct-text-subtle mb-2">Gallery</p>
+              <div className="flex gap-2 overflow-x-auto" style={{ scrollbarWidth: "none" }}>
+                {gallery.map((src, i) => (
+                  <div key={i} className="relative shrink-0 w-[120px] aspect-[4/3] rounded-lg overflow-hidden bg-ct-surface-deep">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img src={src} alt="" className="w-full h-full object-cover" loading="lazy" />
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Type-specific sections */}
+          {sections.map((s, i) => (
+            <div key={i}>
+              <div className="flex items-center gap-1.5 mb-2">
+                <s.Icon size={13} className="text-ct-action-icon" />
+                <p className="text-[10px] font-semibold uppercase tracking-wider text-ct-text-subtle">{s.label}</p>
+              </div>
+              <ul className="space-y-1.5">
+                {s.items.map((it, j) => (
+                  <li key={j} className="flex items-start gap-2 text-[12px] text-ct-text-secondary leading-relaxed">
+                    <span className="mt-1.5 w-1 h-1 rounded-full bg-ct-text-subtle shrink-0" />
+                    <span>{it}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ))}
+
+          {/* Reviews */}
+          {stop?.reviews?.length ? (
+            <div>
+              <div className="flex items-center gap-1.5 mb-2">
+                <ChatCircle size={13} className="text-ct-action-icon" />
+                <p className="text-[10px] font-semibold uppercase tracking-wider text-ct-text-subtle">Recent reviews</p>
+              </div>
+              <div className="space-y-2.5">
+                {stop.reviews.map((rev, i) => (
+                  <div key={i} className="border border-ct-border-light rounded-xl p-3 bg-white">
+                    <div className="flex items-center gap-2 mb-1.5">
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img src={rev.avatar} alt={rev.author} className="w-6 h-6 rounded-full object-cover" />
+                      <span className="text-[11.5px] font-bold text-[#1a1a1a]">{rev.author}</span>
+                      <StarRating rating={rev.rating} />
+                      <span className="text-[9.5px] text-ct-text-subtle ml-auto">{rev.date}</span>
+                    </div>
+                    <p className="text-[11.5px] text-ct-text-secondary leading-relaxed">&ldquo;{rev.text}&rdquo;</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+          ) : null}
+
+          {/* Mentioned-by */}
+          <div className="flex items-center gap-2 pt-1">
+            <div className="flex">
+              {(stop?.recommenderAvatars ?? ["https://i.pravatar.cc/40?img=12","https://i.pravatar.cc/40?img=23","https://i.pravatar.cc/40?img=44"]).slice(0,3).map((a, i) => (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img key={i} src={a} alt="" className="w-6 h-6 rounded-full border-2 border-white object-cover" style={{ marginLeft: i === 0 ? 0 : -8 }} />
+              ))}
+            </div>
+            <p className="text-[11px] text-ct-text-muted">
+              Recommended by <span className="text-[#1a1a1a] font-bold">{mentioned}</span> travellers
+            </p>
+          </div>
+        </div>
+      </div>
+
+      {/* Footer nav */}
+      <div className="shrink-0 border-t border-ct-border-light px-3 py-2.5 flex items-center gap-2 bg-white">
+        <button
+          onClick={onPrev}
+          disabled={!hasPrev}
+          className="flex items-center gap-1 text-[11.5px] font-semibold text-ct-text-secondary border border-ct-border rounded-full px-3 py-1.5 hover:border-ct-border-medium hover:bg-ct-surface-subtle transition-colors disabled:opacity-40 disabled:hover:bg-transparent disabled:hover:border-ct-border"
+        >
+          <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><polyline points="15 18 9 12 15 6"/></svg>
+          Prev stop
+        </button>
+        <button
+          onClick={onNext}
+          disabled={!hasNext}
+          className="ml-auto flex items-center gap-1 text-[11.5px] font-semibold text-white bg-[#1a1a1a] hover:bg-ct-action-hover rounded-full px-3 py-1.5 transition-colors disabled:opacity-40"
+        >
+          Next stop
+          <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><polyline points="9 18 15 12 9 6"/></svg>
+        </button>
+      </div>
+    </div>
+  );
+}
+
+/* ── Map panel ───────────────────────────────────────────── */
+function MapPanel({
+  selectedDay, onSelectDay, days, pulseDay, changedActivityKey,
+}: {
+  selectedDay: number;
+  onSelectDay: (day: number) => void;
+  days: DayPlan[];
+  pulseDay?: number;
+  changedActivityKey?: string;
+}) {
+  const mapDays = days.map(d => ({
+    day: d.day,
+    location: d.location,
+    lat: d.lat,
+    lng: d.lng,
+    img: d.img,
+    tag: d.tag,
+    region: d.detail.region,
+    blurb: d.detail.description,
+    mentionedBy: d.detail.mentionedBy,
+  }));
+  const activeDay = days.find(d => d.day === selectedDay);
+  const [showDetail, setShowDetail] = useState(false);
+  const [selectedStopKey, setSelectedStopKey] = useState<string | null>(null);
+  const dayActivities = activeDay
+    ? activeDay.activities
+        .filter(a => a.lat != null && a.lng != null)
+        .map((a, i) => {
+          const meta = getStopKindMeta(a.type);
+          return {
+            key: `${activeDay.day}-${i}-${a.name}`,
+            name: a.name,
+            lat: a.lat as number,
+            lng: a.lng as number,
+            img: a.img,
+            time: a.time,
+            blurb: a.blurb,
+            mentionedBy: a.mentionedBy,
+            kind: a.type,
+            kindLabel: meta.label,
+            srcIndex: i,
+          };
+        })
+    : [];
+
+  const selectedStopIdx = selectedStopKey ? dayActivities.findIndex(a => a.key === selectedStopKey) : -1;
+  const selectedStop = selectedStopIdx >= 0 && activeDay ? activeDay.activities[dayActivities[selectedStopIdx].srcIndex] : null;
+
+  const [detailTab, setDetailTab] = useState<"overview" | "guides" | "stays" | "restaurants" | "things" | "reviews">("overview");
+
+  function handleDaySelect(day: number) {
+    onSelectDay(day);
+    setShowDetail(false);
+    setSelectedStopKey(null);
+  }
+  function openDetail(day: number) {
+    onSelectDay(day);
+    setShowDetail(true);
+    setSelectedStopKey(null);
+    setDetailTab("overview");
+  }
+  function openStop(key: string) {
+    setSelectedStopKey(key);
+    setShowDetail(false);
+  }
+
+  return (
+    <div className="w-[380px] shrink-0 border-l border-ct-border flex flex-col bg-white">
+      {/* Map header */}
+      <div className="flex items-center justify-between px-4 py-4 border-b border-ct-border-light shrink-0">
+        <div className="flex items-center gap-2">
+          <div className="w-6 h-6 rounded-lg bg-ct-action-active flex items-center justify-center">
+            <MapPin size={13} color="white" weight="fill" />
+          </div>
+          <span className="text-[14px] font-bold text-[#1a1a1a]">Trip Map</span>
+        </div>
+        {(showDetail || selectedStop) ? (
+          <button
+            onClick={() => { setShowDetail(false); setSelectedStopKey(null); }}
+            className="text-[11px] text-ct-text-muted hover:text-[#1a1a1a] transition-colors flex items-center gap-1"
+          >
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><polyline points="15 18 9 12 15 6"/></svg>
+            Map
+          </button>
+        ) : (
+          <span className="text-[11px] text-ct-text-subtle">Bali, Indonesia</span>
+        )}
+      </div>
+
+      {selectedStop && activeDay ? (
+        <StopDetailPanel
+          activity={selectedStop}
+          day={activeDay}
+          onClose={() => setSelectedStopKey(null)}
+          onPrev={() => {
+            if (selectedStopIdx > 0) setSelectedStopKey(dayActivities[selectedStopIdx - 1].key);
+          }}
+          onNext={() => {
+            if (selectedStopIdx < dayActivities.length - 1) setSelectedStopKey(dayActivities[selectedStopIdx + 1].key);
+          }}
+          hasPrev={selectedStopIdx > 0}
+          hasNext={selectedStopIdx < dayActivities.length - 1}
+        />
+      ) : showDetail && activeDay ? (
+        /* ── Rich place detail panel (tabs + gallery) ─── */
+        <PlaceDetailPanel
+          day={activeDay}
+          tab={detailTab}
+          setTab={setDetailTab}
+          onClose={() => setShowDetail(false)}
+          onSelectOtherDay={d => openDetail(d)}
+          otherDays={days.filter(d => d.day !== selectedDay)}
+        />
       ) : (
         <>
           {/* Leaflet map */}
           <div className="flex-1 relative min-h-0">
-            <TripMap days={mapDays} selectedDay={selectedDay} onSelectDay={handleDaySelect} />
+            <TripMap
+              days={mapDays}
+              selectedDay={selectedDay}
+              onSelectDay={handleDaySelect}
+              onPinClick={openDetail}
+              onActivityClick={openStop}
+              selectedActivityKey={selectedStopKey ?? undefined}
+              mode="day"
+              dayActivities={dayActivities}
+              pulseDay={pulseDay}
+              changedActivityKey={changedActivityKey}
+            />
+            {activeDay && (
+              <button
+                onClick={() => openDetail(activeDay.day)}
+                className="absolute top-3 left-3 right-3 flex items-center gap-2 bg-white/95 backdrop-blur-sm rounded-xl border border-ct-border-light shadow-sm px-3 py-2 hover:shadow-md transition-all text-left"
+              >
+                <div className="w-7 h-7 rounded-full bg-[#FF4F17] text-white text-[11px] font-bold flex items-center justify-center shrink-0">
+                  {activeDay.day}
+                </div>
+                <div className="min-w-0 flex-1">
+                  <p className="text-[11.5px] font-bold text-[#1a1a1a] leading-tight">Day {activeDay.day} · {activeDay.location}</p>
+                  <p className="text-[10px] text-ct-text-muted leading-tight">{dayActivities.length} stops · tap to view place details</p>
+                </div>
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#888" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="shrink-0"><polyline points="9 18 15 12 9 6"/></svg>
+              </button>
+            )}
           </div>
 
+          {/* Other stops in this day */}
+          {activeDay && dayActivities.length > 0 && (
+            <div className="shrink-0 border-t border-ct-border-light px-4 py-3 bg-white">
+              <div className="flex items-center justify-between mb-2">
+                <div className="flex items-center gap-1.5">
+                  <ListBullets size={11} className="text-ct-text-subtle" />
+                  <p className="text-[10px] font-semibold text-ct-text-subtle uppercase tracking-wider">Day {activeDay.day} stops</p>
+                </div>
+                <span className="text-[10px] text-ct-text-muted">{dayActivities.length} stops · tap for details</span>
+              </div>
+              <div className="flex gap-2 overflow-x-auto" style={{ scrollbarWidth: "none" }}>
+                {dayActivities.map((a, i) => {
+                  const meta = getStopKindMeta(a.kind as ActivityType);
+                  const isSelected = selectedStopKey === a.key;
+                  const justChanged = changedActivityKey === a.key;
+                  return (
+                    <button
+                      key={a.key}
+                      onClick={() => openStop(a.key)}
+                      className={cn(
+                        "flex-none w-[124px] rounded-xl overflow-hidden border bg-white text-left transition-all hover:shadow-sm",
+                        isSelected
+                          ? "border-ct-orange ring-2 ring-ct-orange/15"
+                          : justChanged
+                            ? "border-ct-orange shadow-md"
+                            : "border-ct-border-light hover:border-ct-border-medium",
+                      )}
+                    >
+                      <div className="relative w-full aspect-[4/3] bg-ct-surface-deep overflow-hidden">
+                        {a.img && (
+                          // eslint-disable-next-line @next/next/no-img-element
+                          <img src={a.img} alt={a.name} className="w-full h-full object-cover" loading="lazy" />
+                        )}
+                        <div className={cn(
+                          "absolute top-1.5 left-1.5 w-4 h-4 rounded-full text-white text-[8.5px] font-bold flex items-center justify-center",
+                          isSelected ? "bg-ct-orange" : "bg-ct-text",
+                        )}>{i + 1}</div>
+                        <span className="absolute bottom-1.5 left-1.5 inline-flex items-center gap-1 bg-white/95 backdrop-blur text-[8.5px] font-bold uppercase tracking-wider text-ct-text px-1.5 py-0.5 rounded-full shadow-sm">
+                          <meta.Icon size={9} weight="bold" />
+                          {meta.label}
+                        </span>
+                      </div>
+                      <div className="px-2 py-1.5">
+                        <p className="text-[9.5px] text-ct-text-muted">{a.time}</p>
+                        <p className="text-[10.5px] font-semibold text-ct-text leading-tight line-clamp-2 mt-0.5">{a.name}</p>
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
           {/* Day legend */}
-          <div className="shrink-0 border-t border-ct-border-light px-4 py-3">
-            <p className="text-[10px] font-semibold text-ct-text-subtle uppercase tracking-wider mb-2">Route — click a pin for details</p>
-            <div className="flex gap-2 overflow-x-auto" style={{ scrollbarWidth: "none" }}>
-              {BALI_PLAN.map(d => (
-                <button
-                  key={d.day}
-                  onClick={() => handleDaySelect(d.day)}
-                  className={cn(
-                    "flex-none flex flex-col items-center gap-1 px-3 py-2 rounded-xl border transition-colors",
-                    selectedDay === d.day ? "border-[#FF4F17] bg-[#fff9f7]" : "border-ct-border-light hover:border-ct-border-medium",
-                  )}
-                >
-                  <div className={cn(
-                    "w-6 h-6 rounded-full flex items-center justify-center text-[11px] font-bold transition-colors",
-                    selectedDay === d.day ? "bg-[#FF4F17] text-white" : "bg-[#1a1a1a] text-white",
-                  )}>
-                    {d.day}
+          <div className="shrink-0 border-t border-ct-border-light bg-ct-surface-raised px-4 py-3">
+            <div className="flex items-center justify-between mb-2">
+              <div className="flex items-center gap-1.5">
+                <MapPin size={11} className="text-ct-text-subtle" weight="fill" />
+                <p className="text-[10px] font-semibold text-ct-text-subtle uppercase tracking-wider">Route</p>
+              </div>
+              <span className="inline-flex items-center gap-1 text-[10px] text-ct-text-muted">
+                Click a pin for details
+                <ArrowRight size={10} />
+              </span>
+            </div>
+            <div className="flex gap-1.5 overflow-x-auto" style={{ scrollbarWidth: "none" }}>
+              {BALI_PLAN.map((d, i) => {
+                const isActive = selectedDay === d.day;
+                return (
+                  <div key={d.day} className="flex items-center">
+                    <button
+                      onClick={() => handleDaySelect(d.day)}
+                      className={cn(
+                        "flex-none flex flex-col items-center gap-1 px-3 py-2 rounded-xl border bg-white transition-colors",
+                        isActive
+                          ? "border-ct-orange ring-2 ring-ct-orange/15"
+                          : "border-ct-border-light hover:border-ct-border-medium",
+                      )}
+                    >
+                      <div className={cn(
+                        "w-6 h-6 rounded-full flex items-center justify-center text-[11px] font-bold transition-colors",
+                        isActive ? "bg-ct-orange text-white" : "bg-ct-text text-white",
+                      )}>
+                        {d.day}
+                      </div>
+                      <span className={cn(
+                        "text-[9.5px] font-medium whitespace-nowrap",
+                        isActive ? "text-ct-text" : "text-ct-text-secondary",
+                      )}>{d.location}</span>
+                    </button>
+                    {i < BALI_PLAN.length - 1 && (
+                      <div className="w-2 h-px bg-ct-border-medium mx-0.5 shrink-0" />
+                    )}
                   </div>
-                  <span className="text-[9.5px] text-ct-text-secondary font-medium whitespace-nowrap">{d.location}</span>
-                </button>
-              ))}
+                );
+              })}
             </div>
           </div>
         </>
@@ -1957,6 +3522,7 @@ function MapPanel({ selectedDay, onSelectDay }: { selectedDay: number; onSelectD
 function ChatArea({
   stage, msgs, isTyping, planStep, planUpdating, currentQ, qIdx, selected,
   onStart, onPick, onAnswer, onSkip, chipCtx, onChipChange, onNewChat, selectedDay, onSelectDay, endRef,
+  days, setDays, onSwapHighlight, onResultsMessage, onSwapApply, onCardApply,
 }: {
   stage: Stage;
   msgs: Msg[];
@@ -1976,6 +3542,12 @@ function ChatArea({
   selectedDay: number;
   onSelectDay: (day: number) => void;
   endRef: React.RefObject<HTMLDivElement | null>;
+  days: DayPlan[];
+  setDays: React.Dispatch<React.SetStateAction<DayPlan[]>>;
+  onSwapHighlight: (day: number, activityName?: string) => void;
+  onResultsMessage: (txt: string) => void;
+  onSwapApply: (kind: SwapKind, opt: SwapOption) => void;
+  onCardApply: (set: CardSet, card: RichCard) => void;
 }) {
   const [promptSet, setPromptSet] = useState(0);
   const showCard = (stage === "q1" || stage === "q2" || stage === "q3") && currentQ !== null;
@@ -1994,15 +3566,13 @@ function ChatArea({
           <HeaderTripChips ctx={chipCtx} onCtxChange={onChipChange} onNewChat={onNewChat} />
         )}
         <div className="flex items-center gap-2 ml-auto shrink-0">
-          <button className="flex items-center gap-1.5 text-[12px] font-semibold text-ct-text-secondary border border-ct-border px-3.5 py-1.5 rounded-full hover:bg-ct-surface-subtle transition-colors">
-            <Plus size={12} weight="bold" />
-            Create a Trip
-          </button>
+          
           <button className="text-[12px] font-semibold text-ct-text-secondary border border-ct-border px-3.5 py-1.5 rounded-full hover:bg-ct-surface-subtle transition-colors">
             Invite
           </button>
-          <button className="flex items-center gap-1 text-[12px] font-semibold text-ct-text-secondary border border-ct-border px-3.5 py-1.5 rounded-full hover:bg-ct-surface-subtle transition-colors">
-            🇮🇳 English
+          <button className="flex items-center gap-1.5 text-[12px] font-semibold text-ct-text-secondary border border-ct-border px-3.5 py-1.5 rounded-full hover:bg-ct-surface-subtle transition-colors">
+            <Globe size={13} className="text-ct-action-icon" />
+            English
             <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><polyline points="6 9 12 15 18 9" /></svg>
           </button>
         </div>
@@ -2078,7 +3648,38 @@ function ChatArea({
                       <PlanningMsg step={STEPS.length} />
                     </div>
                   </div>
-                  <PlanResultView onSelectDay={onSelectDay} selectedDay={selectedDay} planUpdating={planUpdating} />
+                  <PlanResultView
+                    onSelectDay={onSelectDay}
+                    selectedDay={selectedDay}
+                    planUpdating={planUpdating}
+                    days={days}
+                    setDays={setDays}
+                    onSwapHighlight={onSwapHighlight}
+                  />
+                </div>
+              );
+              if (msg.kind === "breakdown") return (
+                <div key={msg.id} className="flex gap-2.5">
+                  <Spark />
+                  <div className="flex-1 min-w-0">
+                    <TripBreakdown />
+                  </div>
+                </div>
+              );
+              if (msg.kind === "swap") return (
+                <div key={msg.id} className="flex gap-2.5">
+                  <Spark />
+                  <div className="flex-1 min-w-0">
+                    <SwapCarousel kind={msg.swapKind!} onApply={opt => onSwapApply(msg.swapKind!, opt)} />
+                  </div>
+                </div>
+              );
+              if (msg.kind === "cards") return (
+                <div key={msg.id} className="flex gap-2.5">
+                  <Spark />
+                  <div className="flex-1 min-w-0">
+                    <RichCards set={msg.cardSet!} onApply={card => onCardApply(msg.cardSet!, card)} />
+                  </div>
                 </div>
               );
               return null;
@@ -2121,7 +3722,10 @@ function ChatArea({
         )}
 
         {stage === "results" && (
-          <ResultsInput onSend={txt => sendFree(txt)} />
+          <div className="space-y-1">
+            <QuickReplies onPick={onResultsMessage} />
+            <ResultsInput onSend={onResultsMessage} />
+          </div>
         )}
       </div>
     </div>
@@ -2199,7 +3803,12 @@ export default function AIPlanner() {
           setTimeout(() => {
             setStage("results");
             addMsg({ kind: "planning-done" });
-            showAI("Here's your plan! Tap any booking button, or ask me to change anything.", 600);
+            showAI("Here's your plan! Here's the cost breakdown:", 600);
+            setTimeout(() => addMsg({ kind: "breakdown" }), 1500);
+            setTimeout(() => addMsg({
+              kind: "ai",
+              text: "Tap any day on the map to zoom in. Ask me to swap the stay, customise activities, or rebalance the budget anytime.",
+            }), 2200);
           }, 700);
         }
       }, 850);
@@ -2240,6 +3849,151 @@ export default function AIPlanner() {
 
   const [showChatsPanel, setShowChatsPanel] = useState(false);
   const [selectedDay, setSelectedDay] = useState(1);
+  const [days, setDays] = useState<DayPlan[]>(BALI_PLAN);
+  const [pulseDay, setPulseDay] = useState<number | undefined>(undefined);
+  const [changedActivityKey, setChangedActivityKey] = useState<string | undefined>(undefined);
+  const pulseTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  function triggerHighlight(day: number, activityKey?: string) {
+    setSelectedDay(day);
+    setPulseDay(day);
+    setChangedActivityKey(activityKey);
+    if (pulseTimer.current) clearTimeout(pulseTimer.current);
+    pulseTimer.current = setTimeout(() => {
+      setPulseDay(undefined);
+      setChangedActivityKey(undefined);
+    }, 4500);
+  }
+
+  function handleSwapHighlight(day: number, activityName?: string) {
+    const target = days.find(d => d.day === day);
+    const idx = target?.activities.findIndex(a => a.name === activityName) ?? -1;
+    const key = target && idx >= 0 ? `${target.day}-${idx}-${target.activities[idx].name}` : undefined;
+    triggerHighlight(day, key);
+  }
+
+  function applySwapToDays(kind: SwapKind, opt: SwapOption) {
+    if (kind === "stay") {
+      // Replace any "Check-in at …" or "hotel" type activity in Day 1
+      const dayNo = days[0]?.day ?? 1;
+      let newKey: string | undefined;
+      setDays(prev => prev.map((d, di) => {
+        if (di !== 0) return d;
+        const newActs = d.activities.map((a, ai) => {
+          if (a.type === "hotel") {
+            newKey = `${d.day}-${ai}-Check-in at ${opt.name}`;
+            return { ...a, name: `Check-in at ${opt.name}` };
+          }
+          return a;
+        });
+        return { ...d, activities: newActs };
+      }));
+      triggerHighlight(dayNo, newKey);
+    } else {
+      // Replace selectedDay's first non-hotel activity
+      let newKey: string | undefined;
+      setDays(prev => prev.map(d => {
+        if (d.day !== selectedDay) return d;
+        let replaced = false;
+        const newActs = d.activities.map((a, ai) => {
+          if (!replaced && a.type !== "hotel" && a.type !== "flight") {
+            replaced = true;
+            newKey = `${d.day}-${ai}-${opt.name}`;
+            return { ...a, name: opt.name };
+          }
+          return a;
+        });
+        return { ...d, activities: newActs };
+      }));
+      triggerHighlight(selectedDay, newKey);
+    }
+  }
+
+  function handleResultsMessage(txt: string) {
+    if (!txt.trim()) return;
+    addMsg({ kind: "user-init", text: txt });
+    const lower = txt.toLowerCase();
+    const isStay = /(stay|hotel|resort|accommodation|where i.?m staying)/.test(lower);
+    const isActivity = /(activit|experience|things to do|customis|customiz|swap.*(?:activ|experien)|adventure)/.test(lower);
+    const isCheaper = /(cheap|budget|save|reduce|lower)/.test(lower);
+    const isBreakdown = /(breakdown|cost|total|how much)/.test(lower);
+
+    if (isStay) {
+      showAI("Here are top-rated stays for your dates — tap one to swap it in. Travellers' counts are from real Cleartrip reviews.", 700);
+      setTimeout(() => addMsg({ kind: "swap", swapKind: "stay" }), 1300);
+      return;
+    }
+    if (isActivity) {
+      showAI(`Here are alternative experiences for Day ${selectedDay}. Add any you'd like and the day will rebuild on the map.`, 700);
+      setTimeout(() => addMsg({ kind: "swap", swapKind: "activity" }), 1300);
+      return;
+    }
+    if (isCheaper) {
+      showAI("Here are three swaps that save you ₹14,200 without losing any highlights:", 700);
+      setTimeout(() => addMsg({ kind: "cards", cardSet: "savings" }), 1300);
+      return;
+    }
+    if (isBreakdown) {
+      showAI("Here's the cost breakdown for your trip:", 700);
+      setTimeout(() => addMsg({ kind: "breakdown" }), 1200);
+      return;
+    }
+    const isAdventure = /adventure|adrenaline|thrill|extreme|hike|raft|surf/.test(lower);
+    const isCafe = /cafe|coffee|espresso|brunch|food spot|where to eat|breakfast/.test(lower);
+    const isPace = /slow|chill|relax|rest day|pace|easy|laid.?back/.test(lower);
+    if (isAdventure) {
+      showAI("More adventure on-route — each one fits a free slot in your existing days:", 700);
+      setTimeout(() => addMsg({ kind: "cards", cardSet: "adventure" }), 1300);
+      return;
+    }
+    if (isCafe) {
+      showAI("Top-rated cafés in Bali — tap one to drop it into the day plan:", 700);
+      setTimeout(() => addMsg({ kind: "cards", cardSet: "cafes" }), 1300);
+      return;
+    }
+    if (isPace) {
+      showAI("Three ways to slow it down — I'll re-time the days on the map once you pick:", 700);
+      setTimeout(() => addMsg({ kind: "cards", cardSet: "pace" }), 1300);
+      return;
+    }
+    showAI("Got it — updating your plan and the map on the right…", 700);
+    setPlanUpdating(true);
+    if (updateTimer.current) clearTimeout(updateTimer.current);
+    updateTimer.current = setTimeout(() => setPlanUpdating(false), 1600);
+  }
+
+  function applyCardToTrip(set: CardSet, card: RichCard) {
+    if (set === "savings") {
+      showAI(`✓ Applied — ${card.title}. ${card.badge ?? "Saved"}.`, 500);
+      triggerHighlight(selectedDay);
+      return;
+    }
+    if (set === "adventure" || set === "cafes") {
+      // Replace first non-hotel/non-flight slot in selected day
+      let newKey: string | undefined;
+      setDays(prev => prev.map(d => {
+        if (d.day !== selectedDay) return d;
+        let replaced = false;
+        const newActs = d.activities.map((a, ai) => {
+          if (!replaced && a.type !== "hotel" && a.type !== "flight") {
+            replaced = true;
+            newKey = `${d.day}-${ai}-${card.title}`;
+            return { ...a, name: card.title };
+          }
+          return a;
+        });
+        return { ...d, activities: newActs };
+      }));
+      showAI(`✓ Added "${card.title}" to Day ${selectedDay} — see the highlight on the map.`, 500);
+      triggerHighlight(selectedDay, newKey);
+      return;
+    }
+    if (set === "pace") {
+      showAI(`✓ Applied — ${card.title}. Days re-timed.`, 500);
+      triggerHighlight(selectedDay);
+      return;
+    }
+  }
 
   function handleChipChange(updated: ChipCtx) {
     setChipCtx(updated);
@@ -2263,8 +4017,12 @@ export default function AIPlanner() {
     setVibeAnswer("");
     setSelectedDay(1);
     setPlanUpdating(false);
+    setDays(BALI_PLAN);
+    setPulseDay(undefined);
+    setChangedActivityKey(undefined);
     if (planTimer.current) clearInterval(planTimer.current);
     if (updateTimer.current) clearTimeout(updateTimer.current);
+    if (pulseTimer.current) clearTimeout(pulseTimer.current);
   }
 
   return (
@@ -2292,9 +4050,21 @@ export default function AIPlanner() {
         selectedDay={selectedDay}
         onSelectDay={setSelectedDay}
         endRef={endRef}
+        days={days}
+        setDays={setDays}
+        onSwapHighlight={handleSwapHighlight}
+        onResultsMessage={handleResultsMessage}
+        onSwapApply={applySwapToDays}
+        onCardApply={applyCardToTrip}
       />
       {stage === "results" ? (
-        <MapPanel selectedDay={selectedDay} onSelectDay={setSelectedDay} />
+        <MapPanel
+          selectedDay={selectedDay}
+          onSelectDay={setSelectedDay}
+          days={days}
+          pulseDay={pulseDay}
+          changedActivityKey={changedActivityKey}
+        />
       ) : showRightPanel ? (
         <RightPanel />
       ) : null}
