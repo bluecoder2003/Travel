@@ -527,10 +527,10 @@ function StayRow({
   const total = hotel.pricePerNight * n;
 
   return (
-    <div className="relative pl-6">
+    <div className="relative">
       {/* timeline dot + line */}
       <div className="absolute left-0 top-2 flex flex-col items-center">
-        <span className="w-3 h-3 rounded-full bg-ct-action ring-4 ring-ct-surface" />
+        {/* <span className="w-3 h-3 rounded-full bg-ct-action ring-4 ring-ct-surface" /> */}
         <span className="w-px flex-1 bg-ct-border-light mt-1" style={{ height: expanded ? "100%" : "200%" }} />
       </div>
 

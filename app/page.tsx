@@ -77,7 +77,7 @@ interface Version {
 interface ChipDiff { label: string; from: string; to: string }
 interface Msg {
   id: string;
-  kind: "user-init" | "ai" | "summary" | "planning" | "planning-done" | "breakdown" | "swap" | "cards" | "save-trip" | "flights" | "multi-stay" | "version-saved" | "regen-preview";
+  kind: "user-init" | "ai" | "summary" | "planning" | "planning-done" | "breakdown" | "swap" | "cards" | "save-trip" | "flights" | "multi-stay" | "trip-bundle" | "version-saved" | "regen-preview";
   text?: string;
   pairs?: SummaryPair[];
   swapKind?: SwapKind;
@@ -1572,52 +1572,8 @@ function PlanResultView({
             <p className="text-[12px] text-ct-text-secondary leading-relaxed">{activeDay.detail.description}</p>
           </div>
 
-          {/* Activities */}
-          <div className="px-4 py-3 border-b border-[#f5f5f5]">
-            <div className="flex items-center justify-between mb-2.5">
-              <p className="text-[10px] font-bold text-ct-text-subtle uppercase tracking-widest">Activities</p>
-              <button
-                onClick={() => setCustomizingDayId(customizingDayId === activeDay.day ? null : activeDay.day)}
-                className={cn(
-                  "flex items-center gap-1.5 text-[10.5px] font-semibold px-3 py-1 rounded-full transition-colors border",
-                  customizingDayId === activeDay.day
-                    ? "bg-[#1a1a1a] text-white border-[#1a1a1a]"
-                    : "text-ct-text-secondary bg-ct-surface-subtle border-ct-border hover:bg-[#ebebeb]"
-                )}
-              >
-                <PencilSimple size={10} />
-                {customizingDayId === activeDay.day ? "Done" : "Customise"}
-              </button>
-            </div>
-            <div className="space-y-2.5">
-              {activeDay.activities.map((act, i) => {
-                const dayIdx = days.findIndex(d => d.day === activeDay.day);
-                return (
-                  <div key={i} className="group flex items-center gap-3">
-                    <div className="w-8 h-8 rounded-xl bg-[#f5f5f5] flex items-center justify-center shrink-0">
-                      <ActivityIcon type={act.type} size={15} />
-                    </div>
-                    <div className="min-w-0 flex-1">
-                      <p className="text-[13px] font-semibold text-[#1a1a1a] leading-tight">{act.name}</p>
-                      <p className="text-[10.5px] text-ct-text-subtle mt-0.5">{act.time}</p>
-                    </div>
-                    {act.type !== "flight" && act.type !== "hotel" && (
-                      <button
-                        onClick={() => handleRemove(dayIdx, i)}
-                        className="opacity-0 group-hover:opacity-100 w-6 h-6 rounded-full bg-[#fee2e2] flex items-center justify-center shrink-0 transition-opacity hover:bg-[#fecaca]"
-                        title="Remove activity"
-                      >
-                        <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="#dc2626" strokeWidth="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
-                      </button>
-                    )}
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-
-          {/* Inline customizer — expands below activities */}
-          {customizingDayId === activeDay.day && (
+          {/* Activities — flips to customizer in place when editing */}
+          {customizingDayId === activeDay.day ? (
             <div className="px-4 py-3 border-b border-[#f5f5f5] bg-[#fafafa]">
               <ActivitiesCustomizer
                 day={activeDay}
@@ -1625,6 +1581,44 @@ function PlanResultView({
                 onAdd={handleAdd}
                 onClose={() => setCustomizingDayId(null)}
               />
+            </div>
+          ) : (
+            <div className="px-4 py-3 border-b border-[#f5f5f5]">
+              <div className="flex items-center justify-between mb-2.5">
+                <p className="text-[10px] font-bold text-ct-text-subtle uppercase tracking-widest">Activities</p>
+                <button
+                  onClick={() => setCustomizingDayId(activeDay.day)}
+                  className="flex items-center gap-1.5 text-[10.5px] font-semibold px-3 py-1 rounded-full transition-colors border text-ct-text-secondary bg-ct-surface-subtle border-ct-border hover:bg-[#ebebeb]"
+                >
+                  <PencilSimple size={10} />
+                  Customise
+                </button>
+              </div>
+              <div className="space-y-2.5">
+                {activeDay.activities.map((act, i) => {
+                  const dayIdx = days.findIndex(d => d.day === activeDay.day);
+                  return (
+                    <div key={i} className="group flex items-center gap-3">
+                      <div className="w-8 h-8 rounded-xl bg-[#f5f5f5] flex items-center justify-center shrink-0">
+                        <ActivityIcon type={act.type} size={15} />
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <p className="text-[13px] font-semibold text-[#1a1a1a] leading-tight">{act.name}</p>
+                        <p className="text-[10.5px] text-ct-text-subtle mt-0.5">{act.time}</p>
+                      </div>
+                      {act.type !== "flight" && act.type !== "hotel" && (
+                        <button
+                          onClick={() => handleRemove(dayIdx, i)}
+                          className="opacity-0 group-hover:opacity-100 w-6 h-6 rounded-full bg-[#fee2e2] flex items-center justify-center shrink-0 transition-opacity hover:bg-[#fecaca]"
+                          title="Remove activity"
+                        >
+                          <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="#dc2626" strokeWidth="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                        </button>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
             </div>
           )}
 
@@ -1967,6 +1961,153 @@ function TripBreakdown() {
                 </div>
               </div>
             )}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+/* ── Consolidated trip bundle (accordion) ───────────────── */
+type BundleSection = "flights" | "stays" | "breakdown";
+
+function TripBundleCard({
+  onFlightSwap,
+}: {
+  onFlightSwap: (leg: "Outbound" | "Return", label: string) => void;
+}) {
+  const [open, setOpen] = useState<BundleSection | null>(null);
+
+  const sections: {
+    id: BundleSection;
+    Icon: React.ComponentType<{ size?: number; color?: string; weight?: "regular" | "fill" | "duotone" | "bold" | "light" | "thin" }>;
+    iconBg: string;
+    iconColor: string;
+    title: string;
+    summary: string;
+    price: string;
+    priceSub?: string;
+    priceTone?: "default" | "success";
+  }[] = [
+    {
+      id: "flights",
+      Icon: AirplaneTilt,
+      iconBg: "bg-[#eef4ff]",
+      iconColor: "#3b82f6",
+      title: "Flights",
+      summary: "Delhi ⇌ Bali · Non-stop · IndiGo",
+      price: "₹20,396",
+      priceSub: "round-trip",
+    },
+    {
+      id: "stays",
+      Icon: Bed,
+      iconBg: "bg-[#fef3e8]",
+      iconColor: "#FF4F17",
+      title: "Stays",
+      summary: "2 hotels · 4 nights · split across cities",
+      price: "₹34,000",
+      priceSub: "total",
+    },
+    {
+      id: "breakdown",
+      Icon: CurrencyInr,
+      iconBg: "bg-[#ecfdf5]",
+      iconColor: "#16a34a",
+      title: "Cost breakdown",
+      summary: "Flights, stays & experiences",
+      price: "₹63,094",
+      priceSub: "₹16,906 under budget",
+      priceTone: "success",
+    },
+  ];
+
+  return (
+    <div className="bg-white border border-ct-border rounded-2xl overflow-hidden shadow-sm">
+      {/* Header */}
+      <div className="px-4 py-3 bg-gradient-to-br from-[#fafbfd] to-white border-b border-ct-border-light">
+        <div className="flex items-start justify-between gap-3">
+          <div className="min-w-0">
+            <p className="text-[10.5px] uppercase tracking-[0.08em] font-bold text-ct-text-subtle">Trip overview</p>
+            <p className="text-[15px] font-bold text-[#1a1a1a] mt-0.5 leading-tight">Your Bali plan is ready</p>
+            <p className="text-[11.5px] text-ct-text-muted mt-1">Tap a section to review, swap, or override anything.</p>
+          </div>
+          <div className="text-right shrink-0">
+            <p className="text-[18px] font-bold text-[#1a1a1a] leading-none">₹63,094</p>
+            <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-[#16a34a] bg-[#dcfce7] px-2 py-0.5 rounded-full mt-1.5">
+              <svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+              ₹16,906 under budget
+            </span>
+          </div>
+        </div>
+      </div>
+
+      {/* Sections */}
+      {sections.map((s, i) => {
+        const isOpen = open === s.id;
+        return (
+          <div
+            key={s.id}
+            className={cn(
+              "border-b border-ct-border-light",
+              i === sections.length - 1 && "border-b-0",
+            )}
+          >
+            <button
+              onClick={() => setOpen(isOpen ? null : s.id)}
+              aria-expanded={isOpen}
+              className={cn(
+                "w-full flex items-center gap-3 px-4 py-3.5 text-left transition-colors",
+                isOpen ? "bg-[#fafbfd]" : "hover:bg-[#fafbfd]",
+              )}
+            >
+              <div className={cn("w-9 h-9 rounded-xl flex items-center justify-center shrink-0", s.iconBg)}>
+                <s.Icon size={17} color={s.iconColor} weight="duotone" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-[13px] font-bold text-[#1a1a1a] leading-tight">{s.title}</p>
+                <p className="text-[11px] text-ct-text-muted mt-0.5 truncate">{s.summary}</p>
+              </div>
+              <div className="text-right shrink-0">
+                <p className="text-[13px] font-bold text-[#1a1a1a] leading-none">{s.price}</p>
+                {s.priceSub && (
+                  <p className={cn(
+                    "text-[10px] mt-1",
+                    s.priceTone === "success" ? "text-[#16a34a] font-semibold" : "text-ct-text-subtle",
+                  )}>
+                    {s.priceSub}
+                  </p>
+                )}
+              </div>
+              <svg
+                width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#bbb"
+                strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"
+                className={cn("shrink-0 ml-1 transition-transform duration-200", isOpen && "rotate-180")}
+              >
+                <polyline points="6 9 12 15 18 9"/>
+              </svg>
+            </button>
+
+            <div
+              className={cn(
+                "grid transition-[grid-template-rows] duration-300 ease-out",
+                isOpen ? "grid-rows-[1fr]" : "grid-rows-[0fr]",
+              )}
+            >
+              <div className="overflow-hidden">
+                <div className="px-3 pb-3 pt-1 bg-[#fafbfd]">
+                  {s.id === "flights" && (
+                    <FlightsBlock onSwap={onFlightSwap} />
+                  )}
+                  {s.id === "stays" && (
+                    <MultiStayBlock />
+                  )}
+                  {s.id === "breakdown" && (
+                    <TripBreakdown />
+                  )}
+                </div>
+              </div>
+            </div>
           </div>
         );
       })}
@@ -4780,6 +4921,16 @@ function ChatArea({
                   </div>
                 </div>
               );
+              if (msg.kind === "trip-bundle") return (
+                <div key={msg.id} className="flex gap-2.5">
+                  <Spark />
+                  <div className="flex-1 min-w-0">
+                    <TripBundleCard
+                      onFlightSwap={(leg, label) => onLogChange(`${leg} flight swap`, `${leg} → ${label}`)}
+                    />
+                  </div>
+                </div>
+              );
               if (msg.kind === "regen-preview" && msg.chipDiffs) return (
                 <div key={msg.id} className="flex gap-2.5">
                   <Spark />
@@ -4926,20 +5077,13 @@ export default function AIPlanner() {
           setTimeout(() => {
             setStage("results");
             addMsg({ kind: "planning-done" });
-            showAI("Here are your AI-picked flights — alternates below each leg. Tap any to swap it in.", 600);
-            setTimeout(() => addMsg({ kind: "flights" }), 1400);
-            setTimeout(() => addMsg({
-              kind: "ai",
-              text: "And your stays — split across two cities to match your day plan. Each leg can be swapped, split, or merged.",
-            }), 2400);
-            setTimeout(() => addMsg({ kind: "multi-stay" }), 3000);
-            setTimeout(() => addMsg({ kind: "ai", text: "Here's the full cost breakdown:" }), 4000);
-            setTimeout(() => addMsg({ kind: "breakdown" }), 4600);
+            showAI("Here's everything else — flights, stays and total cost in one place. Tap a section to review or swap.", 600);
+            setTimeout(() => addMsg({ kind: "trip-bundle" }), 1400);
             setTimeout(() => addMsg({
               kind: "ai",
               text: "Tap any day on the map to zoom in. Ask me to swap the stay, customise activities, or rebalance the budget anytime.",
-            }), 5300);
-            setTimeout(() => addMsg({ kind: "save-trip" }), 6100);
+            }), 2400);
+            setTimeout(() => addMsg({ kind: "save-trip" }), 3200);
           }, 700);
         }
       }, 850);
@@ -5287,16 +5431,9 @@ export default function AIPlanner() {
           setTimeout(() => {
             setStage("results");
             addMsg({ kind: "planning-done" });
-            showAI("Fresh flights for your new dates — pick the legs that suit you.", 600);
-            setTimeout(() => addMsg({ kind: "flights" }), 1300);
-            setTimeout(() => addMsg({
-              kind: "ai",
-              text: `Stays re-matched for ${dateStr}. Swap, split or merge any leg.`,
-            }), 2300);
-            setTimeout(() => addMsg({ kind: "multi-stay" }), 2900);
-            setTimeout(() => addMsg({ kind: "ai", text: "Updated cost breakdown for the new plan:" }), 3800);
-            setTimeout(() => addMsg({ kind: "breakdown" }), 4400);
-            setTimeout(() => addMsg({ kind: "save-trip", text: "update" }), 5200);
+            showAI(`Fresh flights, stays and costs for ${dateStr}. Tap a section to review what changed.`, 600);
+            setTimeout(() => addMsg({ kind: "trip-bundle" }), 1300);
+            setTimeout(() => addMsg({ kind: "save-trip", text: "update" }), 2200);
             triggerHighlight(selectedDay);
           }, 600);
         }
