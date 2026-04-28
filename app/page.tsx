@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useMemo } from "react";
 import dynamic from "next/dynamic";
 import Image from "next/image";
 import { cn } from "@/lib/utils";
@@ -74,13 +74,15 @@ interface Version {
   changes: string[];      // delta chips ("+ Alaya Resort", "− Catamaran cruise")
   snapshot: { days: DayPlan[]; chipCtx: ChipCtx | null };
 }
+interface ChipDiff { label: string; from: string; to: string }
 interface Msg {
   id: string;
-  kind: "user-init" | "ai" | "summary" | "planning-done" | "breakdown" | "swap" | "cards" | "save-trip" | "flights" | "multi-stay" | "version-saved";
+  kind: "user-init" | "ai" | "summary" | "planning-done" | "breakdown" | "swap" | "cards" | "save-trip" | "flights" | "multi-stay" | "version-saved" | "regen-preview";
   text?: string;
   pairs?: SummaryPair[];
   swapKind?: SwapKind;
   cardSet?: CardSet;
+  chipDiffs?: ChipDiff[];
 }
 interface ChipCtx {
   destination: string;
@@ -212,10 +214,10 @@ const PROMPT_CARD_SETS = [
 ];
 
 const TRENDING = [
-  { city: "Bali, Indonesia", img: "https://picsum.photos/seed/bali-rice/400/260" },
-  { city: "Santorini, Greece", img: "https://picsum.photos/seed/santorini-gr/400/260" },
-  { city: "Kyoto, Japan", img: "https://picsum.photos/seed/kyoto-japan/400/260" },
-  { city: "Patagonia, Argentina", img: "https://picsum.photos/seed/patagonia-ar/400/260" },
+  { city: "Bali, Indonesia", img: "/popular-bali.png" },
+  { city: "Santorini, Greece", img: "/popular-greece.png" },
+  { city: "Kyoto, Japan", img: "/popular-japan.png" },
+  { city: "Patagonia, Argentina", img: "/popular-argentina.png" },
 ];
 
 type InspirationItem = {
@@ -234,7 +236,7 @@ const INSPIRATION: InspirationItem[] = [
     source: "Lonely Planet",
     title: "3 Perfect Days in Bali",
     sub: "An itinerary for first-time visitors navigating temples, rice terraces and surf.",
-    img: "https://picsum.photos/seed/bali-temple/400/280",
+    img: "/all1.png",
     tags: ["#bali", "#indonesia", "#firsttrip"],
     href: "https://www.lonelyplanet.com/articles/best-things-to-do-in-bali",
   },
@@ -243,7 +245,7 @@ const INSPIRATION: InspirationItem[] = [
     source: "Mark Wiens · YouTube",
     title: "Ultimate Bangkok Street Food Tour",
     sub: "Eat your way through 12 legendary stalls in one day.",
-    img: "https://picsum.photos/seed/bangkok-food/400/280",
+    img: "/all2.png",
     tags: ["#bangkok", "#foodie", "#streetfood"],
     href: "https://www.youtube.com/watch?v=3S7bRzdxULg",
   },
@@ -252,7 +254,7 @@ const INSPIRATION: InspirationItem[] = [
     source: "TripAdvisor",
     title: "10 Days Across the Amalfi Coast",
     sub: "Cliff towns, hidden coves and the best limoncello stops on the drive.",
-    img: "https://picsum.photos/seed/amalfi-coast/400/280",
+    img: "/all3.png",
     tags: ["#italy", "#amalfi", "#roadtrip"],
     href: "https://www.tripadvisor.com/Tourism-g187779-Amalfi_Province_of_Salerno_Campania-Vacations.html",
   },
@@ -261,7 +263,7 @@ const INSPIRATION: InspirationItem[] = [
     source: "Condé Nast Traveler",
     title: "Europe's Most Scenic Train Journeys",
     sub: "From the Glacier Express to the West Highland Line — windows worth booking a seat for.",
-    img: "https://picsum.photos/seed/europe-train/400/280",
+    img: "/all4.png",
     tags: ["#europe", "#train", "#scenic"],
     href: "https://www.cntraveler.com/gallery/most-scenic-train-rides-in-europe",
   },
@@ -270,7 +272,7 @@ const INSPIRATION: InspirationItem[] = [
     source: "Lost LeBlancs · YouTube",
     title: "Hidden Gems of Patagonia",
     sub: "Torres del Paine trails and campsites that most tourists never find.",
-    img: "https://picsum.photos/seed/patagonia-ar/400/280",
+    img: "/all5.png",
     tags: ["#patagonia", "#hiking", "#offbeat"],
     href: "https://www.youtube.com/watch?v=Dm4MkTqn_9M",
   },
@@ -279,7 +281,7 @@ const INSPIRATION: InspirationItem[] = [
     source: "Travel + Leisure",
     title: "Best Ryokans in Japan",
     sub: "Six traditional inns with kaiseki dinners, onsen baths and impeccable service.",
-    img: "https://picsum.photos/seed/japan-ryokan/400/280",
+    img: "/all6.png",
     tags: ["#japan", "#ryokan", "#luxury"],
     href: "https://www.travelandleisure.com/hotels/best-ryokans-japan",
   },
@@ -289,19 +291,19 @@ const COMMUNITY = [
   {
     user: "Anika S.",
     title: "A hidden beach in Nusa Penida worth visiting",
-    img: "https://picsum.photos/seed/nusa-penida/80/60",
+    img: "/scenary.png",
     tags: ["#bali", "#hidden"],
   },
   {
     user: "Rahul K.",
     title: "Best sunset spot in Uluwatu",
-    img: "https://picsum.photos/seed/uluwatu/80/60",
+    img: "/community1.png",
     tags: ["#uluwatu", "#sunset"],
   },
   {
     user: "Priya M.",
     title: "Solo trip through Vietnam — 3 weeks, ₹60k",
-    img: "https://picsum.photos/seed/vietnam-solo/80/60",
+    img: "/community2.png",
     tags: ["#vietnam", "#solotravel", "#budget"],
   },
 ];
@@ -2063,26 +2065,55 @@ function downloadTripPDF(days: DayPlan[], chipCtx: ChipCtx | null) {
   win.document.close();
 }
 
-/* ── Save changes bar (shown after first save when edits exist) ── */
-function SaveChangesBar({ changes, onSave }: { changes: string[]; onSave: () => void }) {
+/* ── Save / Regenerate changes bar ─────────────────────────── */
+function SaveChangesBar({
+  changes, mode, onSave, onGenerate,
+}: {
+  changes: string[];
+  mode: "save" | "generate";
+  onSave: () => void;
+  onGenerate: () => void;
+}) {
   const SHOW = 5;
   const visible = changes.slice(-SHOW);
   const overflow = changes.length - SHOW;
+  const isGenerate = mode === "generate";
+
   return (
-    <div className="mb-2 bg-white border border-ct-border rounded-2xl shadow-sm overflow-hidden">
+    <div className={cn(
+      "mb-2 bg-white rounded-2xl shadow-sm overflow-hidden border transition-colors",
+      isGenerate ? "border-ct-orange/40 ring-1 ring-ct-orange/20" : "border-ct-border",
+    )}>
       <div className="flex items-start gap-3 px-4 py-2.5">
-        <div className="w-6 h-6 rounded-lg bg-ct-orange flex items-center justify-center shrink-0 mt-0.5">
-          <svg width="12" height="12" viewBox="0 0 256 256" fill="white">
-            <path d="M208,32H48A16,16,0,0,0,32,48V208a16,16,0,0,0,16,16H208a16,16,0,0,0,16-16V48A16,16,0,0,0,208,32ZM80,64h96a8,8,0,0,1,0,16H80a8,8,0,0,1,0-16Zm48,128-48-40h20V120h56v32h20Z"/>
-          </svg>
+        <div className={cn(
+          "w-6 h-6 rounded-lg flex items-center justify-center shrink-0 mt-0.5",
+          isGenerate ? "bg-ct-orange" : "bg-ct-orange",
+        )}>
+          {isGenerate ? (
+            <ArrowsClockwise size={12} weight="bold" color="white" />
+          ) : (
+            <svg width="12" height="12" viewBox="0 0 256 256" fill="white">
+              <path d="M208,32H48A16,16,0,0,0,32,48V208a16,16,0,0,0,16,16H208a16,16,0,0,0,16-16V48A16,16,0,0,0,208,32ZM80,64h96a8,8,0,0,1,0,16H80a8,8,0,0,1,0-16Zm48,128-48-40h20V120h56v32h20Z"/>
+            </svg>
+          )}
         </div>
         <div className="flex-1 min-w-0">
           <p className="text-[12px] font-bold text-ct-text leading-tight">
-            {changes.length} unsaved change{changes.length !== 1 ? "s" : ""}
+            {isGenerate
+              ? "Trip details changed — plan needs regenerating"
+              : `${changes.length} unsaved change${changes.length !== 1 ? "s" : ""}`}
           </p>
           <div className="flex flex-wrap gap-1 mt-1.5">
             {visible.map((c, i) => (
-              <span key={i} className="text-[10px] font-medium text-ct-text-muted bg-ct-surface-subtle rounded-full px-2 py-0.5 truncate max-w-[200px]">
+              <span
+                key={i}
+                className={cn(
+                  "text-[10px] font-medium rounded-full px-2 py-0.5 truncate max-w-[200px]",
+                  isGenerate
+                    ? "text-ct-orange bg-[#fff3ef] border border-ct-orange/20"
+                    : "text-ct-text-muted bg-ct-surface-subtle",
+                )}
+              >
                 {c}
               </span>
             ))}
@@ -2094,14 +2125,70 @@ function SaveChangesBar({ changes, onSave }: { changes: string[]; onSave: () => 
           </div>
         </div>
         <button
-          onClick={onSave}
-          className="shrink-0 flex items-center gap-1.5 text-[11.5px] font-semibold bg-ct-text text-white rounded-xl px-3 py-2 hover:bg-ct-action transition-colors mt-0.5"
+          onClick={isGenerate ? onGenerate : onSave}
+          className={cn(
+            "shrink-0 flex items-center gap-1.5 text-[11.5px] font-semibold rounded-xl px-3 py-2 transition-colors mt-0.5",
+            isGenerate
+              ? "bg-ct-orange text-white hover:bg-[#e03d08]"
+              : "bg-ct-text text-white hover:bg-ct-action",
+          )}
         >
-          <svg width="11" height="11" viewBox="0 0 256 256" fill="currentColor">
-            <path d="M208,32H48A16,16,0,0,0,32,48V208a16,16,0,0,0,16,16H208a16,16,0,0,0,16-16V48A16,16,0,0,0,208,32ZM80,64h96a8,8,0,0,1,0,16H80a8,8,0,0,1,0-16Zm48,128-48-40h20V120h56v32h20Z"/>
-          </svg>
-          Save version
+          {isGenerate ? (
+            <>
+              <ArrowsClockwise size={11} weight="bold" />
+              Generate response
+            </>
+          ) : (
+            <>
+              <svg width="11" height="11" viewBox="0 0 256 256" fill="currentColor">
+                <path d="M208,32H48A16,16,0,0,0,32,48V208a16,16,0,0,0,16,16H208a16,16,0,0,0,16-16V48A16,16,0,0,0,208,32ZM80,64h96a8,8,0,0,1,0,16H80a8,8,0,0,1,0-16Zm48,128-48-40h20V120h56v32h20Z"/>
+              </svg>
+              Save version
+            </>
+          )}
         </button>
+      </div>
+    </div>
+  );
+}
+
+/* ── Regen-preview message bubble (shown in chat after a top-level edit) ── */
+function RegenPreview({ diffs }: { diffs: ChipDiff[] }) {
+  return (
+    <div className="bg-white border border-ct-orange/30 rounded-2xl shadow-sm overflow-hidden">
+      <div className="flex items-center gap-2 px-4 pt-3 pb-2">
+        <div className="w-5 h-5 rounded-md bg-ct-orange/10 flex items-center justify-center">
+          <ArrowsClockwise size={11} weight="bold" className="text-ct-orange" />
+        </div>
+        <p className="text-[11px] font-semibold uppercase tracking-wider text-ct-orange">
+          Trip detail changed
+        </p>
+      </div>
+      <div className="px-4 pb-3 space-y-2">
+        <p className="text-[13px] text-ct-text leading-snug">
+          {diffs.length === 1
+            ? "This is a top-level change — the whole plan will need to regenerate."
+            : "These are top-level changes — the whole plan will need to regenerate."}
+        </p>
+        <div className="flex flex-col gap-1.5 pt-1">
+          {diffs.map((d, i) => (
+            <div key={i} className="flex items-center gap-2 text-[12px]">
+              <span className="text-[10px] font-semibold uppercase tracking-wide text-ct-text-subtle w-[68px] shrink-0">
+                {d.label}
+              </span>
+              <span className="text-ct-text-muted line-through truncate max-w-[140px]">
+                {d.from || "—"}
+              </span>
+              <ArrowRight size={11} className="text-ct-orange shrink-0" weight="bold" />
+              <span className="font-semibold text-ct-text truncate">
+                {d.to || "—"}
+              </span>
+            </div>
+          ))}
+        </div>
+        <p className="text-[11.5px] text-ct-text-muted pt-1 leading-relaxed">
+          Flights, stays and activities will be reshuffled. Tap <span className="font-semibold text-ct-orange">Generate response</span> below to refresh.
+        </p>
       </div>
     </div>
   );
@@ -3051,9 +3138,185 @@ function RightPanel() {
 
 /* ── Header trip chips (editable, appears in top bar after results) ── */
 const MONTH_ABR = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+const MONTH_FULL = ["January","February","March","April","May","June","July","August","September","October","November","December"];
+const DAY_ABR = ["S","M","T","W","T","F","S"];
 function fmtHdr(iso: string) {
   const [, m, d] = iso.split("-");
   return `${MONTH_ABR[parseInt(m)-1]} ${parseInt(d)}`;
+}
+
+function HeaderMiniCalendar({ year, month, selected, onDayClick }: {
+  year: number; month: number;
+  selected: { start: string; end: string };
+  onDayClick: (iso: string) => void;
+}) {
+  const firstDay = new Date(year, month, 1).getDay();
+  const daysInMonth = new Date(year, month + 1, 0).getDate();
+  const cells: (number | null)[] = [
+    ...Array(firstDay).fill(null),
+    ...Array.from({ length: daysInMonth }, (_, i) => i + 1),
+  ];
+  while (cells.length % 7 !== 0) cells.push(null);
+
+  function iso(d: number) {
+    return `${year}-${String(month + 1).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
+  }
+  const today = new Date();
+  const todayMidnight = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+
+  return (
+    <div className="w-full">
+      <div className="grid grid-cols-7 mb-1">
+        {DAY_ABR.map((d, i) => (
+          <div key={i} className="text-center text-[9.5px] text-ct-text-disabled font-medium py-1">{d}</div>
+        ))}
+      </div>
+      <div className="grid grid-cols-7 gap-y-0.5">
+        {cells.map((d, i) => {
+          if (!d) return <div key={i} />;
+          const s = iso(d);
+          const isStart = s === selected.start;
+          const isEnd = s === selected.end;
+          const inRange = selected.start && selected.end && s > selected.start && s < selected.end;
+          const past = new Date(year, month, d) < todayMidnight;
+          return (
+            <button
+              key={i}
+              disabled={past}
+              onClick={() => onDayClick(s)}
+              className={cn(
+                "h-7 text-[11px] font-medium rounded-full transition-colors",
+                past && "text-ct-text-disabled cursor-not-allowed",
+                !past && !isStart && !isEnd && !inRange && "text-ct-text hover:bg-[#fff3ef]",
+                inRange && "bg-[#fff3ef] text-ct-orange rounded-none",
+                (isStart || isEnd) && "bg-ct-orange text-white",
+              )}
+            >
+              {d}
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+function WhenChipPanel({ ctx, onCtxChange, onClose }: {
+  ctx: ChipCtx;
+  onCtxChange: (updated: ChipCtx) => void;
+  onClose: () => void;
+}) {
+  const initial = useMemo(() => {
+    if (ctx.dates.start) {
+      const [y, m] = ctx.dates.start.split("-");
+      return { year: parseInt(y), month: parseInt(m) - 1 };
+    }
+    const now = new Date();
+    return { year: now.getFullYear(), month: now.getMonth() };
+  }, [ctx.dates.start]);
+  const [calYear, setCalYear] = useState(initial.year);
+  const [calMonth, setCalMonth] = useState(initial.month);
+  const [mode, setMode] = useState<"exact" | "flexible">(ctx.dateMode === "flexible" || ctx.quickPick ? "flexible" : "exact");
+
+  function handleDayClick(iso: string) {
+    const d = ctx.dates;
+    if (!d.start || (d.start && d.end)) {
+      onCtxChange({ ...ctx, quickPick: "", dateMode: "exact", dates: { start: iso, end: "" } });
+    } else if (iso < d.start) {
+      onCtxChange({ ...ctx, quickPick: "", dateMode: "exact", dates: { start: iso, end: d.start } });
+    } else {
+      onCtxChange({ ...ctx, quickPick: "", dateMode: "exact", dates: { start: d.start, end: iso } });
+    }
+  }
+  function prevMonth() {
+    if (calMonth === 0) { setCalMonth(11); setCalYear(y => y - 1); }
+    else setCalMonth(m => m - 1);
+  }
+  function nextMonth() {
+    if (calMonth === 11) { setCalMonth(0); setCalYear(y => y + 1); }
+    else setCalMonth(m => m + 1);
+  }
+
+  return (
+    <div className="absolute top-full left-[80px] mt-2 z-50 w-72 bg-white border border-[#e8e8e8] rounded-2xl shadow-[0_8px_40px_rgba(0,0,0,0.12)] overflow-hidden">
+      <div className="px-4 py-3 border-b border-[#f5f5f5] flex items-center justify-between">
+        <p className="text-[13px] font-bold text-[#1a1a1a]">Travel dates</p>
+        <button onClick={onClose} className="text-ct-text-disabled hover:text-ct-text-muted text-lg leading-none">×</button>
+      </div>
+      <div className="px-4 py-3 space-y-3">
+        <div className="relative flex gap-0 p-1 bg-ct-surface-subtle rounded-xl">
+          {(["exact", "flexible"] as const).map(m => (
+            <button
+              key={m}
+              onClick={() => setMode(m)}
+              className={cn(
+                "flex-1 py-1.5 text-[11.5px] font-semibold rounded-lg transition-colors",
+                mode === m ? "bg-white shadow-sm text-ct-text" : "text-ct-text-subtle",
+              )}
+            >
+              {m === "exact" ? "Exact dates" : "I'm flexible"}
+            </button>
+          ))}
+        </div>
+
+        {mode === "exact" ? (
+          <>
+            {(ctx.dates.start || ctx.dates.end) && (
+              <div className="flex items-center gap-2">
+                <div className={cn(
+                  "flex-1 text-center py-1.5 rounded-lg border text-[12px]",
+                  ctx.dates.start ? "border-ct-orange bg-[#fff3ef] text-ct-orange font-semibold" : "border-ct-border text-ct-text-disabled",
+                )}>
+                  {ctx.dates.start ? fmtHdr(ctx.dates.start) : "Depart"}
+                </div>
+                <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#ccc" strokeWidth="2"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
+                <div className={cn(
+                  "flex-1 text-center py-1.5 rounded-lg border text-[12px]",
+                  ctx.dates.end ? "border-ct-orange bg-[#fff3ef] text-ct-orange font-semibold" : "border-ct-border text-ct-text-disabled",
+                )}>
+                  {ctx.dates.end ? fmtHdr(ctx.dates.end) : "Return"}
+                </div>
+              </div>
+            )}
+            <div className="flex items-center justify-between">
+              <button onClick={prevMonth} className="w-7 h-7 flex items-center justify-center rounded-full hover:bg-ct-surface-subtle">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#888" strokeWidth="2.5" strokeLinecap="round"><polyline points="15 18 9 12 15 6"/></svg>
+              </button>
+              <span className="text-[12px] font-semibold text-ct-text">{MONTH_FULL[calMonth]} {calYear}</span>
+              <button onClick={nextMonth} className="w-7 h-7 flex items-center justify-center rounded-full hover:bg-ct-surface-subtle">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#888" strokeWidth="2.5" strokeLinecap="round"><polyline points="9 18 15 12 9 6"/></svg>
+              </button>
+            </div>
+            <HeaderMiniCalendar year={calYear} month={calMonth} selected={ctx.dates} onDayClick={handleDayClick} />
+            {(ctx.dates.start || ctx.dates.end) && (
+              <button
+                onClick={() => onCtxChange({ ...ctx, dates: { start: "", end: "" } })}
+                className="w-full text-[11px] text-ct-text-disabled hover:text-ct-text-muted transition-colors py-1"
+              >Clear dates</button>
+            )}
+          </>
+        ) : (
+          <div className="flex flex-wrap gap-1.5">
+            {["Next weekend","This month","In June","In July","Flexible"].map(pick => (
+              <button
+                key={pick}
+                onClick={() => onCtxChange({ ...ctx, quickPick: pick, dateMode: "flexible", dates: { start: "", end: "" } })}
+                className={cn(
+                  "text-[11.5px] font-medium px-2.5 py-1 rounded-full border transition-colors",
+                  ctx.quickPick === pick ? "bg-ct-action text-white border-[#505050]" : "border-ct-border text-ct-text-secondary hover:border-[#888]",
+                )}
+              >{pick}</button>
+            ))}
+          </div>
+        )}
+
+        <button
+          onClick={onClose}
+          className="w-full py-2 text-[12px] font-semibold text-white bg-ct-action hover:bg-ct-action-hover rounded-xl transition-colors"
+        >Done</button>
+      </div>
+    </div>
+  );
 }
 
 function HeaderTripChips({
@@ -3145,41 +3408,7 @@ function HeaderTripChips({
 
       {/* When panel */}
       {open === "when" && (
-        <div className="absolute top-full left-[80px] mt-2 z-50 w-64 bg-white border border-[#e8e8e8] rounded-2xl shadow-[0_8px_40px_rgba(0,0,0,0.12)] overflow-hidden">
-          <div className="px-4 py-3 border-b border-[#f5f5f5] flex items-center justify-between">
-            <p className="text-[13px] font-bold text-[#1a1a1a]">Travel dates</p>
-            <button onClick={() => setOpen(null)} className="text-ct-text-disabled hover:text-ct-text-muted text-lg leading-none">×</button>
-          </div>
-          <div className="px-4 py-3 space-y-2">
-            <div className="flex gap-1.5 flex-wrap">
-              {["Next weekend","This month","In June","In July","Flexible"].map(pick => (
-                <button
-                  key={pick}
-                  onClick={() => onCtxChange({ ...ctx, quickPick: pick, dateMode: "flexible", dates: { start: "", end: "" } })}
-                  className={cn(
-                    "text-[11.5px] font-medium px-2.5 py-1 rounded-full border transition-colors",
-                    ctx.quickPick === pick ? "bg-ct-action text-white border-[#505050]" : "border-ct-border text-ct-text-secondary hover:border-[#888]",
-                  )}
-                >{pick}</button>
-              ))}
-            </div>
-            {(ctx.dates.start || ctx.dates.end) && (
-              <div className="flex items-center gap-2 pt-1">
-                <div className="flex-1 text-center py-1.5 px-2 rounded-lg border border-ct-border-strong bg-ct-surface-subtle text-[12px] font-semibold text-ct-text-ui">
-                  {ctx.dates.start ? fmtHdr(ctx.dates.start) : "Depart"}
-                </div>
-                <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#ccc" strokeWidth="2"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
-                <div className="flex-1 text-center py-1.5 px-2 rounded-lg border border-ct-border-strong bg-ct-surface-subtle text-[12px] font-semibold text-ct-text-ui">
-                  {ctx.dates.end ? fmtHdr(ctx.dates.end) : "Return"}
-                </div>
-              </div>
-            )}
-            <button
-              onClick={() => setOpen(null)}
-              className="w-full py-2 text-[12px] font-semibold text-white bg-ct-action hover:bg-ct-action-hover rounded-xl transition-colors mt-1"
-            >Done</button>
-          </div>
-        </div>
+        <WhenChipPanel ctx={ctx} onCtxChange={onCtxChange} onClose={() => setOpen(null)} />
       )}
 
       {/* Travelers panel */}
@@ -4056,7 +4285,7 @@ function ChatArea({
   stage, msgs, isTyping, planStep, planUpdating, currentQ, qIdx, selected,
   onStart, onPick, onAnswer, onSkip, chipCtx, onChipChange, onNewChat, selectedDay, onSelectDay, endRef,
   days, setDays, onSwapHighlight, onResultsMessage, onSwapApply, onCardApply, onSaveTrip, onLogChange,
-  hasSaved, unsavedChanges,
+  hasSaved, unsavedChanges, regenPending, onRegenerate,
 }: {
   stage: Stage;
   msgs: Msg[];
@@ -4086,6 +4315,8 @@ function ChatArea({
   onLogChange: (label: string, change: string) => void;
   hasSaved: boolean;
   unsavedChanges: string[];
+  regenPending: boolean;
+  onRegenerate: () => void;
 }) {
   const showCard = (stage === "q1" || stage === "q2" || stage === "q3") && currentQ !== null;
 
@@ -4149,8 +4380,14 @@ function ChatArea({
                   <Sparkle size={10} weight="fill" />
                   AI travel concierge
                 </div>
-                <h1 className="text-[30px] font-medium text-[#1a1a1a] leading-[1.1]">
+                <h1 className="text-[30px] font-medium text-[#1a1a1a] leading-[1.1] tracking-tight">
                   Hey there, <span className="bg-gradient-to-r from-ct-orange to-[#ff7a3d] bg-clip-text text-transparent">Traveller</span>
+                  {/* <span
+                    aria-hidden
+                    className="inline-block ml-2 ct-wave-hand rotate-45"
+                  >
+                    👋
+                  </span> */}
                 </h1>
                 {/* <p className="text-[20px] font-medium text-gray-700 mt-1">Where would you like to go?</p> */}
                 <p className="text-[13.5px] text-ct-text-secondary mt-4 leading-relaxed max-w-[460px]">
@@ -4255,10 +4492,27 @@ function ChatArea({
             </div>
 
             {/* Quick starter chips */}
-            <div className="rounded-2xl border border-ct-border-light bg-ct-surface-raised px-4 py-3.5 flex items-center gap-3">
-              <Image src="/planning.png" alt="" width={44} height={44} className="shrink-0 object-contain pointer-events-none select-none" />
-              <div className="min-w-0 flex-1">
-                <p className="text-[12px] font-bold text-ct-text leading-tight">Quick starters</p>
+            <div className="relative rounded-2xl border border-ct-border-light bg-white overflow-hidden flex items-stretch min-h-[96px]">
+              {/* Left-side image with right-edge fade to white */}
+              <div aria-hidden className="absolute inset-y-0 right-0 w-[32%] pointer-events-none select-none">
+                <Image
+                  src="/house.png"
+                  alt=""
+                  fill
+                  className="object-cover object-[center_70%]"
+                  sizes="(max-width: 768px) 50vw, 320px"
+                />
+                <div
+                  className="absolute inset-0"
+                  style={{
+                    background:
+                      "linear-gradient(to left, rgba(255,255,255,0) 2%, rgba(255,255,255,0.85) 78%, #ffffff 100%)",
+                  }}
+                />
+              </div>
+              {/* Content */}
+              <div className="relative max-w-[600px] flex-1 px-4 py-3.5">
+                <p className="text-[12px] font-medium text-ct-text leading-tight pl-2 pb-3">Quick starters</p>
                 <div className="flex flex-wrap gap-1.5 mt-2">
                   {[
                     "Weekend escape from Mumbai",
@@ -4359,6 +4613,14 @@ function ChatArea({
                   </div>
                 </div>
               );
+              if (msg.kind === "regen-preview" && msg.chipDiffs) return (
+                <div key={msg.id} className="flex gap-2.5">
+                  <Spark />
+                  <div className="flex-1 min-w-0">
+                    <RegenPreview diffs={msg.chipDiffs} />
+                  </div>
+                </div>
+              );
               if (msg.kind === "save-trip") return (
                 <div key={msg.id} className="flex gap-2.5">
                   <Spark />
@@ -4409,9 +4671,21 @@ function ChatArea({
 
         {stage === "results" && (
           <div className="space-y-1">
-            {hasSaved && unsavedChanges.length > 0 && (
-              <SaveChangesBar changes={unsavedChanges} onSave={onSaveTrip} />
-            )}
+            {regenPending ? (
+              <SaveChangesBar
+                changes={unsavedChanges}
+                mode="generate"
+                onSave={onSaveTrip}
+                onGenerate={onRegenerate}
+              />
+            ) : hasSaved && unsavedChanges.length > 0 ? (
+              <SaveChangesBar
+                changes={unsavedChanges}
+                mode="save"
+                onSave={onSaveTrip}
+                onGenerate={onRegenerate}
+              />
+            ) : null}
             <QuickReplies onPick={onResultsMessage} />
             <ResultsInput onSend={onResultsMessage} />
           </div>
@@ -4558,6 +4832,7 @@ export default function AIPlanner() {
     label: "Initial plan",
     changes: [],
   });
+  const [regenPending, setRegenPending] = useState(false);
 
   /* Accumulate changes between saves; latest label wins. */
   function logChange(label: string, change: string) {
@@ -4604,6 +4879,7 @@ export default function AIPlanner() {
     if (v.snapshot.chipCtx) setChipCtx(JSON.parse(JSON.stringify(v.snapshot.chipCtx)));
     setCurrentVersionId(id);
     setPendingChange({ label: `Restored "${v.label}"`, changes: [] });
+    setRegenPending(false);
     showAI(`Restored "${v.label}" — your plan and map are now showing v${v.n}.`, 400);
   }
 
@@ -4783,15 +5059,38 @@ export default function AIPlanner() {
   }
 
   function handleChipChange(updated: ChipCtx) {
-    if (stage === "results") {
-      const diffs: string[] = [];
-      if (chipCtx) {
-        if (updated.destination !== chipCtx.destination) diffs.push(`Destination → ${updated.destination}`);
-        if (updated.dates.start !== chipCtx.dates.start || updated.dates.end !== chipCtx.dates.end) diffs.push("Dates updated");
-        if (updated.adults !== chipCtx.adults || updated.children !== chipCtx.children) diffs.push(`Travellers → ${updated.adults + updated.children}`);
-        if (updated.budgetPreset !== chipCtx.budgetPreset) diffs.push(`Budget → ${updated.budgetPreset ?? "—"}`);
+    if (stage === "results" && chipCtx) {
+      const fmtRange = (s: string, e: string) =>
+        s ? `${fmtChipDate(s)}${e ? " – " + fmtChipDate(e) : ""}` : "—";
+      const budgetLabel = (p: string) =>
+        ({ budget: "Budget", mid: "Mid-range", luxury: "Luxury" }[p] ?? p ?? "—");
+      const richDiffs: ChipDiff[] = [];
+      if (updated.destination !== chipCtx.destination) {
+        richDiffs.push({ label: "Destination", from: chipCtx.destination, to: updated.destination });
       }
-      logChange("Trip details edited", diffs[0] ?? "Trip details edited");
+      if (updated.dates.start !== chipCtx.dates.start || updated.dates.end !== chipCtx.dates.end) {
+        richDiffs.push({
+          label: "Dates",
+          from: fmtRange(chipCtx.dates.start, chipCtx.dates.end),
+          to: fmtRange(updated.dates.start, updated.dates.end),
+        });
+      }
+      if (updated.adults !== chipCtx.adults || updated.children !== chipCtx.children) {
+        richDiffs.push({
+          label: "Travellers",
+          from: String(chipCtx.adults + chipCtx.children),
+          to: String(updated.adults + updated.children),
+        });
+      }
+      if (updated.budgetPreset !== chipCtx.budgetPreset) {
+        richDiffs.push({ label: "Budget", from: budgetLabel(chipCtx.budgetPreset), to: budgetLabel(updated.budgetPreset) });
+      }
+      if (richDiffs.length > 0) {
+        const summary = richDiffs.map(d => `${d.label} → ${d.to}`).join(", ");
+        logChange("Trip details edited", summary);
+        setRegenPending(true);
+        addMsg({ kind: "regen-preview", chipDiffs: richDiffs });
+      }
     }
     setChipCtx(updated);
     if (stage === "results") {
@@ -4799,6 +5098,47 @@ export default function AIPlanner() {
       setPlanUpdating(true);
       updateTimer.current = setTimeout(() => setPlanUpdating(false), 1600);
     }
+  }
+
+  function handleRegenerate() {
+    setRegenPending(false);
+    setPendingChange({ label: "Regenerated plan", changes: [] });
+
+    const dest = chipCtx?.destination || "your trip";
+    const dateStr = chipCtx?.dates.start
+      ? `${fmtChipDate(chipCtx.dates.start)}${chipCtx.dates.end ? " – " + fmtChipDate(chipCtx.dates.end) : ""}`
+      : "the new dates";
+    const travellers = chipCtx ? chipCtx.adults + chipCtx.children : 0;
+    const travellersLabel = travellers > 0 ? `${travellers} traveller${travellers !== 1 ? "s" : ""}` : "your group";
+
+    showAI(`Got it — regenerating ${dest} for ${dateStr} (${travellersLabel}). Reshuffling flights, stays and activities…`, 700);
+    setStage("planning");
+    let step = 0;
+    setPlanStep(0);
+    setTimeout(() => {
+      planTimer.current = setInterval(() => {
+        step++;
+        setPlanStep(step);
+        if (step >= STEPS.length) {
+          clearInterval(planTimer.current!);
+          setTimeout(() => {
+            setStage("results");
+            addMsg({ kind: "planning-done" });
+            showAI("Fresh flights for your new dates — pick the legs that suit you.", 600);
+            setTimeout(() => addMsg({ kind: "flights" }), 1300);
+            setTimeout(() => addMsg({
+              kind: "ai",
+              text: `Stays re-matched for ${dateStr}. Swap, split or merge any leg.`,
+            }), 2300);
+            setTimeout(() => addMsg({ kind: "multi-stay" }), 2900);
+            setTimeout(() => addMsg({ kind: "ai", text: "Updated cost breakdown for the new plan:" }), 3800);
+            setTimeout(() => addMsg({ kind: "breakdown" }), 4400);
+            setTimeout(() => addMsg({ kind: "save-trip", text: "update" }), 5200);
+            triggerHighlight(selectedDay);
+          }, 600);
+        }
+      }, 700);
+    }, 1200);
   }
 
   function resetToIdle() {
@@ -4820,6 +5160,7 @@ export default function AIPlanner() {
     setVersions([]);
     setCurrentVersionId(null);
     setPendingChange({ label: "Initial plan", changes: [] });
+    setRegenPending(false);
     if (planTimer.current) clearInterval(planTimer.current);
     if (updateTimer.current) clearTimeout(updateTimer.current);
     if (pulseTimer.current) clearTimeout(pulseTimer.current);
@@ -4871,6 +5212,8 @@ export default function AIPlanner() {
         onLogChange={logChange}
         hasSaved={versions.length > 0}
         unsavedChanges={pendingChange.changes}
+        regenPending={regenPending}
+        onRegenerate={handleRegenerate}
       />
       {stage === "results" ? (
         <MapPanel
