@@ -1,6 +1,20 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import {
+  List as MenuIcon,
+  CaretRight, CaretLeft, CaretDown,
+  CalendarBlank,
+  ArrowsDownUp,
+  User,
+  AirplaneTakeoff,
+  Airplane,
+  ArrowRight,
+  X,
+  PaperPlaneTilt,
+  MapPin,
+  Sparkle,
+} from "@phosphor-icons/react";
 import Image from "next/image";
 import Link from "next/link";
 import { Button } from "../../components/ui/button";
@@ -14,44 +28,6 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { cn } from "@/lib/utils";
 import { AppSidebar } from "@/components/appsidebar";
 
-/* ─── Tiny icon helpers (page-local only) ────────────────── */
-const Ic = {
-  ChevRight: () => (
-    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-      <polyline points="9 18 15 12 9 6"/>
-    </svg>
-  ),
-  ChevLeft: () => (
-    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-      <polyline points="15 18 9 12 15 6"/>
-    </svg>
-  ),
-  ChevDown: () => (
-    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-      <polyline points="6 9 12 15 18 9"/>
-    </svg>
-  ),
-  Calendar: () => (
-    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-      <rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/>
-    </svg>
-  ),
-  Swap: () => (
-    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M7 16V4m0 0L3 8m4-4 4 4M17 8v12m0 0 4-4m-4 4-4-4"/>
-    </svg>
-  ),
-  Check: () => (
-    <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
-      <polyline points="20 6 9 17 4 12"/>
-    </svg>
-  ),
-  User: () => (
-    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/>
-    </svg>
-  ),
-};
 
 /* ─── Flight Search Card ─────────────────────────────────── */
 function FlightSearch() {
@@ -71,15 +47,15 @@ function FlightSearch() {
     <Card className="gap-0 p-0 rounded-[12px] shadow-[0_2px_16px_rgba(0,0,0,0.10)] ring-0">
 
       {/* ── Row 1: trip type + passengers ── */}
-      <CardContent className="flex items-center justify-between px-5 pt-5 pb-4">
-        <div className="flex items-center gap-6">
+      <CardContent className="flex items-center justify-between gap-2 px-3 sm:px-5 pt-4 sm:pt-5 pb-3 sm:pb-4 flex-wrap">
+        <div className="flex items-center gap-4 sm:gap-6">
           {[
             { val: "oneway", label: "One way" },
             { val: "roundtrip", label: "Round trip" },
           ].map((t) => (
             <Label
               key={t.val}
-              className="flex items-center gap-2 cursor-pointer text-[15px] text-[#333] font-medium"
+              className="flex items-center gap-2 cursor-pointer text-[14px] sm:text-[15px] text-[#333] font-medium"
               onClick={() => setTripType(t.val as "oneway" | "roundtrip")}
             >
               <div
@@ -97,32 +73,37 @@ function FlightSearch() {
           ))}
         </div>
 
-        <Button
-          variant="ghost"
-          className="gap-1.5 text-[14px] text-[#333] font-medium hover:text-[#1a1a1a] h-auto px-2 py-1"
-        >
-          <Ic.User />
-          1 Adult, Economy
-          <Ic.ChevDown />
-        </Button>
+        <div className="flex items-center gap-2 ml-auto">
+          <Button
+            variant="ghost"
+            className="gap-1.5 text-[14px] text-[#333] font-medium hover:text-[#1a1a1a] h-auto px-2 py-1"
+          >
+            <User size={15} />
+            1 Adult, Economy
+            <CaretDown size={12} />
+          </Button>
+          <Button
+            variant="outline"
+            className="rounded-full border-[#d8dde6] text-[12px] font-semibold text-[#1a1a1a] hover:bg-[#fafbfd] h-auto px-3.5 py-1.5"
+          >
+            Track flights
+          </Button>
+        </div>
       </CardContent>
 
       <Separator />
 
       {/* ── Row 2: From / Swap / To ── */}
       <div className="flex items-stretch">
-        <div className="flex-1 min-w-0 flex items-center gap-3 px-5 py-4 hover:bg-[#fafbfd] cursor-pointer transition-colors">
+        <div className="flex-1 min-w-0 flex items-center gap-2 sm:gap-3 px-3 sm:px-5 py-3 sm:py-4 hover:bg-[#fafbfd] cursor-pointer transition-colors">
           <span className="text-[#bcc5d3] shrink-0">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M5 17H3a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2h-3"/>
-              <polyline points="9 22 9 12 15 12 15 22"/>
-            </svg>
+            <AirplaneTakeoff size={20} />
           </span>
           <Input
             value={from}
             onChange={(e) => setFrom(e.target.value)}
             placeholder="Where from?"
-            className="border-0 shadow-none focus-visible:ring-0 h-auto p-0 text-[18px] font-semibold text-[#1a1a1a] placeholder:text-[#bcc5d3]"
+            className="border-0 shadow-none focus-visible:ring-0 h-auto p-0 text-[15px] sm:text-[18px] font-semibold text-[#1a1a1a] placeholder:text-[#bcc5d3] min-w-0"
           />
         </div>
 
@@ -134,22 +115,20 @@ function FlightSearch() {
             onClick={swap}
             className="w-9 h-9 rounded-full text-[#8896ab] hover:text-[#1a1a1a] hover:border-[#1a1a1a]"
           >
-            <Ic.Swap />
+            <ArrowsDownUp size={18} />
           </Button>
         </div>
         <Separator orientation="vertical" className="self-stretch" />
 
-        <div className="flex-1 min-w-0 flex items-center gap-3 px-5 py-4 hover:bg-[#fafbfd] cursor-pointer transition-colors">
+        <div className="flex-1 min-w-0 flex items-center gap-2 sm:gap-3 px-3 sm:px-5 py-3 sm:py-4 hover:bg-[#fafbfd] cursor-pointer transition-colors">
           <span className="text-[#bcc5d3] shrink-0">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M21 16v-2l-8-5V3.5c0-.83-.67-1.5-1.5-1.5S10 2.67 10 3.5V9l-8 5v2l8-2.5V19l-2 1.5V22l3.5-1 3.5 1v-1.5L13 19v-5.5l8 2.5z"/>
-            </svg>
+            <Airplane size={20} />
           </span>
           <Input
             value={to}
             onChange={(e) => setTo(e.target.value)}
             placeholder="Where to?"
-            className="border-0 shadow-none focus-visible:ring-0 h-auto p-0 text-[18px] font-semibold text-[#1a1a1a] placeholder:text-[#bcc5d3]"
+            className="border-0 shadow-none focus-visible:ring-0 h-auto p-0 text-[15px] sm:text-[18px] font-semibold text-[#1a1a1a] placeholder:text-[#bcc5d3] min-w-0"
           />
         </div>
       </div>
@@ -158,23 +137,23 @@ function FlightSearch() {
 
       {/* ── Row 3: Departure / Return ── */}
       <div className="flex">
-        <div className="flex-1 flex items-center gap-3 px-5 py-4 hover:bg-[#fafbfd] cursor-pointer transition-colors">
-          <span className="text-[#bcc5d3] shrink-0"><Ic.Calendar /></span>
+        <div className="flex-1 flex items-center gap-2 sm:gap-3 px-3 sm:px-5 py-3 sm:py-4 hover:bg-[#fafbfd] cursor-pointer transition-colors">
+          <span className="text-[#bcc5d3] shrink-0"><CalendarBlank size={15} /></span>
           <div>
-            <span className="text-[18px] font-semibold text-[#1a1a1a]">{departLabel}</span>
+            <span className="text-[15px] sm:text-[18px] font-semibold text-[#1a1a1a]">{departLabel}</span>
             <p className="text-[11px] text-[#999] mt-0.5">Departure</p>
           </div>
         </div>
         <Separator orientation="vertical" className="self-stretch" />
         <div
           className={cn(
-            "flex-1 flex items-center gap-3 px-5 py-4 transition-colors",
+            "flex-1 flex items-center gap-2 sm:gap-3 px-3 sm:px-5 py-3 sm:py-4 transition-colors",
             tripType === "roundtrip" ? "hover:bg-[#fafbfd] cursor-pointer" : "cursor-default",
           )}
         >
-          <span className="text-[#bcc5d3] shrink-0"><Ic.Calendar /></span>
+          <span className="text-[#bcc5d3] shrink-0"><CalendarBlank size={15} /></span>
           <div>
-            <span className={cn("text-[18px] font-semibold", tripType === "roundtrip" ? "text-[#1a1a1a]" : "text-[#bcc5d3]")}>
+            <span className={cn("text-[15px] sm:text-[18px] font-semibold", tripType === "roundtrip" ? "text-[#1a1a1a]" : "text-[#bcc5d3]")}>
               Return
             </span>
             <p className={cn("text-[11px] mt-0.5", tripType === "roundtrip" ? "text-[#999]" : "text-[#bcc5d3]")}>
@@ -187,7 +166,7 @@ function FlightSearch() {
       <Separator />
 
       {/* ── Row 4: Fare type grid ── */}
-      <div className="flex">
+      <div className="hidden sm:flex">
         {/* Business Fares */}
         <button
           onClick={() => setBizFare(!bizFare)}
@@ -200,7 +179,7 @@ function FlightSearch() {
           />
           <div className="min-w-0">
             <p className="text-[13px] font-semibold text-[#1a1a1a] leading-tight">Business Fares by Cleartrip</p>
-            <p className="text-[11px] text-[#888] mt-0.5">Unlock 10% extra savings</p>
+            <p className="text-[11px] text-[#888] mt-0.5">GST Invoice Assurance</p>
           </div>
           <Badge className="shrink-0 bg-ct-orange text-white text-[7.5px] font-extrabold px-1.5 h-auto py-0.5 rounded uppercase tracking-wide mt-0.5">
             SAVE MORE
@@ -228,7 +207,7 @@ function FlightSearch() {
       <Separator />
 
       {/* ── Row 5: Non-stop + Search ── */}
-      <CardContent className="flex items-center justify-between px-5 py-4">
+      <CardContent className="flex items-center justify-between gap-3 px-3 sm:px-5 py-3 sm:py-4 flex-wrap">
         <div className="flex items-center gap-2.5">
           <Switch
             checked={nonstop}
@@ -236,13 +215,13 @@ function FlightSearch() {
             className="data-checked:bg-[#1a1a1a]"
             size="default"
           />
-          <Label className="text-[14px] text-[#444] font-medium cursor-pointer" onClick={() => setNonstop(!nonstop)}>
+          <Label className="text-[13px] sm:text-[14px] text-[#444] font-medium cursor-pointer" onClick={() => setNonstop(!nonstop)}>
             Non-stop flights only
           </Label>
         </div>
 
         <Button
-          className="bg-ct-orange hover:bg-ct-orange-dark text-white font-bold text-[16px] px-14 py-3 h-auto rounded-[8px] shadow-sm"
+          className="bg-ct-orange hover:bg-ct-orange-dark text-white font-bold text-[14px] sm:text-[16px] px-6 sm:px-14 py-2.5 sm:py-3 h-auto rounded-[8px] shadow-sm w-full sm:w-auto"
         >
           Search flights
         </Button>
@@ -255,104 +234,85 @@ function FlightSearch() {
 function SidePanel() {
   const [slide, setSlide] = useState(0);
   const slides = [
-    {
-      img: "https://picsum.photos/seed/india-flights-warm/560/320",
-      eyebrow: "DOMFLASH", badge: "Tatakal Sale",
-      tagline: "Daily 12 – 2 PM", headline: "Domestic Flights",
-      price: "Starting ₹999", sponsor: "SBI", sponsorFull: "SBI Card", sponsorBg: "#003399",
-    },
-    {
-      img: "https://picsum.photos/seed/international-sky/560/320",
-      eyebrow: "INTFLASH", badge: "Weekend Offer",
-      tagline: "Sat & Sun only", headline: "International Flights",
-      price: "From ₹2,499", sponsor: "HDFC", sponsorFull: "HDFC Bank Card", sponsorBg: "#004c97",
-    },
+    { code: "CTFKAXIS", title: "Flat 12% off", sub: "on Flights with Flipkart", sub2: "Axis Bank Credit Cards" },
+    { code: "CTHDFC", title: "Up to 15% off", sub: "on Flights with HDFC", sub2: "Bank Credit Cards" },
+    { code: "CTSBIPL", title: "Flat 10% off", sub: "on Flights with SBI", sub2: "Bank Credit Cards" },
+    { code: "CTICICI", title: "Up to 8% off", sub: "on Flights with ICICI", sub2: "Bank Credit Cards" },
   ];
   const s = slides[slide];
 
   return (
-    <div className="w-[248px] shrink-0 flex flex-col gap-3">
-      {/* Main promo card */}
-      <Card className="gap-0 p-0 rounded-[12px] ring-0 shadow-[0_4px_16px_rgba(0,0,0,0.10)] overflow-hidden border border-[#e2e8f4]">
-        <div className="relative h-[120px]">
-          <Image src={s.img} alt={s.headline} fill className="object-cover" sizes="248px" />
-          <div className="absolute inset-0 bg-linear-to-t from-black/70 via-black/20 to-transparent" />
-          <div className="absolute top-2.5 left-2.5 flex items-center gap-1.5">
-            <Badge className="text-[8.5px] font-extrabold bg-[#0a1f6e] text-white h-auto px-2 py-[3px] rounded uppercase tracking-widest">
-              {s.eyebrow}
-            </Badge>
-            <Badge className="text-[8.5px] font-extrabold bg-[#FFD600] text-[#1a1a1a] h-auto px-2 py-[3px] rounded uppercase tracking-widest">
-              {s.badge}
-            </Badge>
-          </div>
-        </div>
+    <div className="w-full lg:w-[248px] shrink-0 flex flex-col gap-3">
+      {/* Main promo card — gradient with carousel */}
+      <Card className="gap-0 p-0 rounded-[12px] ring-0 shadow-[0_4px_16px_rgba(0,0,0,0.10)] overflow-hidden border-0">
+        <div
+          className="relative h-[150px] px-4 pt-3 pb-3 flex flex-col justify-between"
+          style={{ background: "linear-gradient(135deg, #c8a4f5 0%, #8b6fcc 50%, #6d4fb8 100%)" }}
+        >
+          <Badge className="self-start text-[9.5px] font-bold bg-white/95 text-[#1a1a1a] h-auto px-2 py-[3px] rounded-[3px] tracking-wide shadow-sm">
+            {s.code}
+          </Badge>
 
-        <CardContent className="px-3 pt-2.5 pb-2">
-          <div className="flex items-center gap-1 mb-1.5">
-            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="#1a1a1a" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-              <circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>
-            </svg>
-            <span className="text-[10px] font-semibold text-[#555]">{s.tagline}</span>
+          <div className="text-white">
+            <p className="text-[20px] font-extrabold leading-tight drop-shadow-sm">{s.title}</p>
+            <p className="text-[10.5px] font-medium text-white/90 mt-0.5">{s.sub}</p>
+            <p className="text-[10.5px] font-medium text-white/90 leading-tight">{s.sub2}</p>
           </div>
-          <p className="text-[13px] font-semibold text-[#444] leading-tight">{s.headline}</p>
-          <p className="text-[22px] font-extrabold text-[#1a1a1a] leading-tight mt-0.5">{s.price}</p>
-        </CardContent>
 
-        <Separator />
-        <div className="px-3 py-2 flex items-center gap-2">
-          <div
-            className="h-5 px-2 rounded flex items-center justify-center text-white text-[9px] font-extrabold shrink-0 tracking-wider"
-            style={{ backgroundColor: s.sponsorBg }}
+          {/* Decorative card illustration */}
+          <div className="absolute right-3 bottom-7 flex items-center">
+            <div className="w-10 h-7 rounded-[3px] bg-linear-to-br from-[#FF8A65] to-[#FF5252] shadow-md rotate-[-8deg] -mr-3" />
+            <div className="w-10 h-7 rounded-[3px] bg-linear-to-br from-[#FFD740] to-[#FFA000] shadow-md rotate-[6deg]" />
+          </div>
+
+          {/* Left arrow on card */}
+          <button
+            onClick={() => setSlide((slide - 1 + slides.length) % slides.length)}
+            aria-label="Previous offer"
+            className="absolute left-2 bottom-2 w-5 h-5 rounded-full bg-white/30 hover:bg-white/50 backdrop-blur-sm flex items-center justify-center text-white"
           >
-            {s.sponsor}
-          </div>
-          <p className="text-[10px] text-[#666]">Valid on {s.sponsorFull} &amp; EMI Trans.</p>
-        </div>
+            <CaretLeft size={11} weight="bold" />
+          </button>
 
-        <div className="flex items-center justify-center gap-1.5 pb-2.5">
-          {slides.map((_, i) => (
-            <button
-              key={i}
-              onClick={() => setSlide(i)}
-              className={cn("rounded-full transition-all duration-200", i === slide ? "w-4 h-1.5 bg-[#1a1a1a]" : "w-1.5 h-1.5 bg-[#ddd]")}
-            />
-          ))}
+          {/* Carousel dots */}
+          <div className="absolute right-3 bottom-2 flex items-center gap-1">
+            {slides.map((_, i) => (
+              <button
+                key={i}
+                onClick={() => setSlide(i)}
+                className={cn("rounded-full transition-all", i === slide ? "w-3 h-1 bg-white" : "w-1 h-1 bg-white/50")}
+              />
+            ))}
+          </div>
         </div>
       </Card>
 
+      {/* More offers section header */}
+      <div className="flex items-center justify-between px-1">
+        <span className="text-[14px] font-semibold text-[#1a1a1a]">More offers</span>
+        <Button variant="link" className="text-[12px] h-auto p-0 text-ct-blue font-medium">View all</Button>
+      </div>
+
       {/* More offers card */}
-      <Card className="gap-0 p-0 rounded-[12px] ring-0 shadow-[0_4px_16px_rgba(0,0,0,0.10)] border border-[#e2e8f4]">
-        <CardContent className="flex items-center justify-between px-3.5 pt-3 pb-2">
-          <span className="text-[13px] font-bold text-[#1a1a1a]">More offers</span>
-          <Button variant="link" className="text-[11px] h-auto p-0 text-ct-blue">View all</Button>
-        </CardContent>
-        <Separator />
-        <CardContent className="px-3.5 py-3">
-          <div className="flex items-start gap-2 mb-2">
-            <div className="w-9 h-9 rounded-[8px] bg-ct-blue-light flex items-center justify-center shrink-0">
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#1a6af4" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M17.8 19.2 16 11l3.5-3.5C21 6 21 4 19 4c-1 0-2 .5-2.5 1.5L13 9 4.8 6.2C3.5 5.7 2 6.3 2 7.6c0 .6.3 1.2.8 1.5l5.4 3.4-2.5 3.5c-.5.5-.7 1.2-.5 1.9.3.9 1.2 1.5 2.1 1.3l3.4-.8L12 20l4.2.8c.3.1.5.1.8 0 .7-.3 1.1-1.1.8-1.6z"/>
-              </svg>
-            </div>
-            <div className="min-w-0">
-              <p className="text-[12px] font-bold text-[#1a1a1a] leading-tight">Live Flight Tracking!</p>
-              <p className="text-[10.5px] text-[#777] mt-0.5 leading-snug">Track your flight in real-time with Cleartrip.</p>
-            </div>
-          </div>
-          <Button variant="link" className="text-[11px] h-auto p-0 text-ct-blue">Know more →</Button>
+      <Card className="gap-0 p-0 rounded-[12px] ring-0 shadow-[0_2px_12px_rgba(0,0,0,0.06)] border border-[#eef0f4]">
+        <CardContent className="px-4 py-4">
+          <p className="text-[14px] font-bold text-[#1a1a1a] leading-tight">Live Flight Tracking!</p>
+          <p className="text-[11.5px] text-[#666] mt-1 leading-snug">Book with Cleartrip and track your flight in real-time.</p>
+          <p className="text-[12px] font-semibold text-[#1a1a1a] mt-2.5">Check Now</p>
+          <Button variant="link" className="text-[11.5px] h-auto p-0 text-ct-blue mt-2 font-medium">Know more</Button>
         </CardContent>
         <Separator />
         <div className="flex items-center justify-between px-3.5 py-2.5">
-          <Button variant="outline" size="icon" className="w-6 h-6 rounded-full text-[#aab4c4] hover:border-ct-blue hover:text-ct-blue">
-            <Ic.ChevLeft />
+          <Button variant="ghost" size="icon" className="w-6 h-6 rounded-full text-[#aab4c4] hover:bg-[#f5f7fa]">
+            <CaretLeft size={13} />
           </Button>
           <div className="flex items-center gap-1">
             {[0, 1, 2, 3].map((i) => (
               <div key={i} className={cn("rounded-full", i === 0 ? "w-3 h-1.5 bg-[#aab4c4]" : "w-1.5 h-1.5 bg-[#dde3ee]")} />
             ))}
           </div>
-          <Button variant="outline" size="icon" className="w-6 h-6 rounded-full text-[#aab4c4] hover:border-ct-blue hover:text-ct-blue">
-            <Ic.ChevRight />
+          <Button variant="ghost" size="icon" className="w-6 h-6 rounded-full text-[#aab4c4] hover:bg-[#f5f7fa]">
+            <CaretRight size={13} />
           </Button>
         </div>
       </Card>
@@ -360,37 +320,120 @@ function SidePanel() {
   );
 }
 
-/* ─── Coupon Card System ─────────────────────────────────── */
-function NVSBadge() {
+/* ─── Recent Searches ────────────────────────────────────── */
+function RecentSearches() {
+  const recents = [
+    { from: "Bengaluru", to: "Kolkata", date: "3 May 26" },
+  ];
   return (
-    <div className="flex flex-col items-center overflow-hidden rounded-[4px] shadow-sm shrink-0">
-      <div className="bg-[#d94b11] text-white text-[5.5px] font-extrabold uppercase tracking-wider px-1.5 py-[1.5px] w-full text-center leading-tight">NATION</div>
-      <div className="bg-ct-orange text-white text-[5.5px] font-extrabold uppercase tracking-wider px-1.5 py-[1.5px] w-full text-center leading-tight">VACATION</div>
-      <div className="bg-[#FFD600] text-[#1a1a1a] text-[5.5px] font-extrabold uppercase tracking-wider px-1.5 py-[1.5px] w-full text-center leading-tight">SALE ✦</div>
+    <div className="mt-6">
+      <h2 className="text-[15px] font-semibold text-[#1a1a1a] mb-3">Recent searches</h2>
+      <div className="flex flex-wrap gap-3">
+        {recents.map((r, i) => (
+          <button
+            key={i}
+            className="flex items-center gap-3 bg-white rounded-[10px] border border-[#eef0f4] shadow-[0_1px_4px_rgba(0,0,0,0.04)] px-4 py-2.5 hover:border-[#d8dde6] hover:shadow-[0_2px_8px_rgba(0,0,0,0.06)] transition-all min-w-[220px]"
+          >
+            <div className="flex-1 text-left">
+              <div className="flex items-center gap-1.5 text-[13px] font-semibold text-[#1a1a1a]">
+                <span>{r.from}</span>
+                <ArrowRight size={12} weight="bold" className="text-[#888]" />
+                <span>{r.to}</span>
+              </div>
+              <p className="text-[11px] text-[#888] mt-0.5">{r.date}</p>
+            </div>
+            <CaretRight size={14} className="text-[#bbb]" />
+          </button>
+        ))}
+      </div>
     </div>
   );
 }
 
+/* ─── Coupon Card System ─────────────────────────────────── */
 type CouponCardData = {
-  code: string;
-  img: string;
+  label: string;
   title: string;
   sub: string;
-  nvs?: boolean;
-  flashSale?: boolean;
-  flashTime?: string;
-  banks?: { name: string; bg: string; fg: string }[];
+  bg: string;
+  textTone: "light" | "dark";
+  emoji: string;
+  brand?: { name: string; bg: string; fg: string };
 };
 
 const couponCards: CouponCardData[] = [
-  { code: "BRICK", img: "https://picsum.photos/seed/city-india-warm/600/340", title: "Up to 25% off", sub: "on Domestic Flights", banks: [{ name: "sbi card", bg: "#003399", fg: "#fff" }, { name: "Axis", bg: "#820000", fg: "#fff" }] },
-  { code: "UPGRADE FOR LESS", img: "https://picsum.photos/seed/flash-travel-sky/600/340", title: "Up to 50% off", sub: "on best airfares", flashSale: true, flashTime: "Daily 7 – 9 PM", banks: [{ name: "Paytm", bg: "#00b9f1", fg: "#fff" }, { name: "Air India", bg: "#b22222", fg: "#fff" }] },
-  { code: "CTMNV", img: "https://picsum.photos/seed/travel-green-hills/600/340", title: "Up to ₹5000 off", sub: "on your next flight booking", nvs: true },
-  { code: "CTPAAEE | CTKSBC", img: "https://picsum.photos/seed/airplane-blue-wide/600/340", title: "Up to 7% off", sub: "on unlimited bookings", nvs: true, banks: [{ name: "Axis Bank", bg: "#820000", fg: "#fff" }, { name: "PayPal", bg: "#003087", fg: "#fff" }] },
-  { code: "CTMSPL", img: "https://picsum.photos/seed/sky-blue-flight/600/340", title: "Up to ₹10,000 off", sub: "on Domestic Airline Flights", banks: [{ name: "IndiGo", bg: "#1a2b8c", fg: "#fff" }] },
-  { code: "FAMILYTRIP", img: "https://picsum.photos/seed/family-beach-fun/600/340", title: "Flat 15% off", sub: "for 2 or more travellers", nvs: true },
-  { code: "INTDOTD", img: "https://picsum.photos/seed/japan-mountain-snow/600/340", title: "Flat 15% off", sub: "on Japan, China & Primepoints" },
-  { code: "CTAABHL", img: "https://picsum.photos/seed/business-class-flight/600/340", title: "Up to ₹10,000 off", sub: "on Air India Business & Premium Economy Seat", nvs: true },
+  {
+    label: "YOUR NEXT TRIP STARTS HERE",
+    title: "Up to 25% off",
+    sub: "on Domestic Flights",
+    bg: "linear-gradient(135deg, #1f2a44 0%, #3b4a72 50%, #d97a5a 100%)",
+    textTone: "light",
+    emoji: "✈️",
+    brand: { name: "SBI Card", bg: "#003399", fg: "#fff" },
+  },
+  {
+    label: "FLASH SALE · 7–9 PM",
+    title: "Up to 50% off",
+    sub: "on best airfares",
+    bg: "linear-gradient(135deg, #4a5fc7 0%, #7d8ee0 60%, #f6c987 100%)",
+    textTone: "light",
+    emoji: "⚡",
+    brand: { name: "Air India", bg: "#b22222", fg: "#fff" },
+  },
+  {
+    label: "NATION ON VACATION",
+    title: "Up to ₹5000 off",
+    sub: "on your next flight booking",
+    bg: "linear-gradient(135deg, #cfe9ff 0%, #a8d4f5 50%, #82b8e8 100%)",
+    textTone: "dark",
+    emoji: "🌴",
+    brand: { name: "Cleartrip", bg: "#1a1a1a", fg: "#fff" },
+  },
+  {
+    label: "CTFKAXIS",
+    title: "Flat 12% off",
+    sub: "on Flights with Flipkart Axis Bank Credit Cards",
+    bg: "linear-gradient(135deg, #f9c8d5 0%, #d8a4e8 55%, #9c7bd8 100%)",
+    textTone: "dark",
+    emoji: "💳",
+    brand: { name: "Axis Bank", bg: "#820000", fg: "#fff" },
+  },
+  {
+    label: "CTINDIGO",
+    title: "Flights starting at ₹1799",
+    sub: "Summer Getaway Sale is live",
+    bg: "linear-gradient(135deg, #1c2a52 0%, #2e4178 60%, #4d6bb0 100%)",
+    textTone: "light",
+    emoji: "🛫",
+    brand: { name: "IndiGo", bg: "#1a2b8c", fg: "#fff" },
+  },
+  {
+    label: "GIVE PEACE A CHANCE",
+    title: "Low fares to celebrate",
+    sub: "& encourage peace",
+    bg: "linear-gradient(135deg, #bfe0ff 0%, #79b8e8 60%, #4f8fc9 100%)",
+    textTone: "light",
+    emoji: "🌍",
+    brand: { name: "Cleartrip", bg: "#e63946", fg: "#fff" },
+  },
+  {
+    label: "NEWLY LAUNCHED",
+    title: "Fly more with FLY91",
+    sub: "14 new daily flights added",
+    bg: "linear-gradient(135deg, #ffd6a0 0%, #f3a36b 55%, #c47550 100%)",
+    textTone: "light",
+    emoji: "🌅",
+    brand: { name: "FLY91", bg: "#2a4d8f", fg: "#fff" },
+  },
+  {
+    label: "NEW ROUTE LAUNCHED",
+    title: "Two flights daily",
+    sub: "between Delhi to Hanoi (Vietnam)",
+    bg: "linear-gradient(135deg, #ffd1d4 0%, #f7a8a8 55%, #e87878 100%)",
+    textTone: "dark",
+    emoji: "🛬",
+    brand: { name: "Air India", bg: "#b22222", fg: "#fff" },
+  },
 ];
 
 function OfferCardGrid() {
@@ -398,56 +441,74 @@ function OfferCardGrid() {
   return (
     <div className="space-y-3">
       {rows.map((row, ri) => (
-        <div key={ri} className="grid grid-cols-4 gap-3">
-          {row.map((card, ci) => (
-            <div
-              key={ci}
-              className="relative rounded-[10px] overflow-hidden cursor-pointer group hover:-translate-y-0.5 hover:shadow-[0_8px_28px_rgba(0,0,0,0.20)] transition-all"
-              style={{ height: 148 }}
-            >
-              <Image src={card.img} alt={card.title} fill className="object-cover group-hover:scale-105 transition-transform duration-500" sizes="(max-width: 1260px) 25vw, 285px" />
-              <div className="absolute inset-0 bg-linear-to-br from-black/50 via-black/25 to-black/5" />
-              <div className="absolute inset-0 bg-linear-to-t from-black/65 via-transparent to-transparent" />
-              {card.flashSale && <div className="absolute inset-0 bg-linear-to-r from-[#05174a]/60 to-transparent" />}
+        <div key={ri} className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
+          {row.map((card, ci) => {
+            const isLight = card.textTone === "light";
+            return (
+              <div
+                key={ci}
+                className="relative rounded-[12px] overflow-hidden cursor-pointer group hover:-translate-y-0.5 hover:shadow-[0_10px_28px_rgba(0,0,0,0.16)] transition-all shadow-[0_2px_8px_rgba(0,0,0,0.06)]"
+                style={{ height: 148, background: card.bg }}
+              >
+                {/* Soft glow blob behind illustration */}
+                <div
+                  className={cn(
+                    "absolute -right-6 -top-6 w-28 h-28 rounded-full blur-2xl opacity-50",
+                    isLight ? "bg-white/30" : "bg-white/60",
+                  )}
+                />
 
-              {/* Top row */}
-              <div className="absolute top-2.5 left-2.5 right-2.5 flex items-start justify-between gap-1">
-                <Badge variant="outline" className="bg-white border-[#d0d6e0] shadow-[0_1px_4px_rgba(0,0,0,0.15)] text-[10px] font-semibold text-[#1a1a1a] tracking-wide rounded-full px-2.5 py-[3px] h-auto">
-                  {card.code}
-                </Badge>
-                {card.nvs && <NVSBadge />}
-                {card.flashSale && (
-                  <Badge className="text-[7px] font-extrabold text-[#1a1a1a] bg-[#FFD600] h-auto px-1.5 py-0.5 rounded uppercase tracking-wide">
-                    iFlash Sale ⚡
-                  </Badge>
-                )}
-              </div>
+                {/* Right-side decorative emoji illustration */}
+                {/* <div className="absolute right-2 bottom-2 text-[68px] leading-none select-none drop-shadow-md opacity-90 group-hover:scale-110 group-hover:-rotate-6 transition-transform duration-500">
+                  {card.emoji}
+                </div> */}
 
-              {/* Bottom content */}
-              <div className="absolute bottom-0 left-0 right-0 px-3 pb-2.5">
-                {card.flashTime && (
-                  <Badge className="bg-ct-orange text-white text-[8px] font-bold h-auto px-2 py-[2px] rounded-full mb-1 tracking-wide">
-                    {card.flashTime}
-                  </Badge>
-                )}
-                <p className="text-[17px] font-extrabold text-white leading-tight drop-shadow">{card.title}</p>
-                <p className="text-[10px] text-white/80 font-medium mt-0.5 line-clamp-1">{card.sub}</p>
-                {card.banks && card.banks.length > 0 && (
-                  <div className="flex items-center gap-1 mt-1.5 flex-wrap">
-                    {card.banks.map((b) => (
-                      <Badge
-                        key={b.name}
-                        className="text-[7.5px] font-bold h-auto px-1.5 py-[2px] rounded-[3px] uppercase tracking-wide"
-                        style={{ backgroundColor: b.bg, color: b.fg }}
-                      >
-                        {b.name}
-                      </Badge>
-                    ))}
+                {/* Top label */}
+                <div className="absolute top-3 left-3 right-3">
+                  <span
+                    className={cn(
+                      "inline-block text-[8.5px] font-bold uppercase tracking-[0.08em] px-2 py-[3px] rounded-[3px]",
+                      isLight ? "bg-white/25 text-white backdrop-blur-sm" : "bg-white/70 text-[#1a1a1a]",
+                    )}
+                  >
+                    {card.label}
+                  </span>
+                </div>
+
+                {/* Title block */}
+                <div className="absolute left-3 right-3 top-[42px]">
+                  <p
+                    className={cn(
+                      "text-[17px] font-extrabold leading-tight tracking-tight",
+                      isLight ? "text-white drop-shadow-sm" : "text-[#1a1a1a]",
+                    )}
+                  >
+                    {card.title}
+                  </p>
+                  <p
+                    className={cn(
+                      "text-[10.5px] font-medium mt-1 leading-snug line-clamp-2 pr-12",
+                      isLight ? "text-white/85" : "text-[#1a1a1a]/70",
+                    )}
+                  >
+                    {card.sub}
+                  </p>
+                </div>
+
+                {/* Brand chip bottom-left */}
+                {card.brand && (
+                  <div className="absolute bottom-3 left-3">
+                    <Badge
+                      className="text-[8.5px] font-extrabold h-auto px-2 py-[3px] rounded-[3px] uppercase tracking-wide shadow-sm"
+                      style={{ backgroundColor: card.brand.bg, color: card.brand.fg }}
+                    >
+                      {card.brand.name}
+                    </Badge>
                   </div>
                 )}
               </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       ))}
     </div>
@@ -502,9 +563,9 @@ function PopularDestinations() {
   return (
     <div>
       <h2 className="text-[16px] font-semibold text-[#1a1a1a] mb-3">Popular destinations</h2>
-      <div className="flex gap-3">
+      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-3">
         {destinations.map((d, i) => (
-          <div key={i} className="flex-1 rounded-[10px] overflow-hidden cursor-pointer group hover:-translate-y-0.5 hover:shadow-[0_6px_20px_rgba(0,0,0,0.14)] transition-all border border-ct-border">
+          <div key={i} className="rounded-[10px] overflow-hidden cursor-pointer group hover:-translate-y-0.5 hover:shadow-[0_6px_20px_rgba(0,0,0,0.14)] transition-all border border-ct-border">
             <div className="relative h-[130px]">
               <Image src={d.img} alt={d.city} fill className="object-cover group-hover:scale-110 transition-transform duration-500" sizes="20vw" />
               <div className="absolute inset-0 bg-linear-to-t from-black/65 to-transparent" />
@@ -573,7 +634,7 @@ function ContentSection() {
             >
               <span className="text-[13px] font-medium text-[#1a1a1a] pr-4 whitespace-normal text-left">{faq.q}</span>
               <span className={cn("text-[#aaa] shrink-0 transition-transform duration-200", open === i && "rotate-90")}>
-                <Ic.ChevRight />
+                <CaretRight size={13} />
               </span>
             </Button>
             {open === i && (
@@ -601,8 +662,8 @@ const footerCols: Record<string, string[]> = {
 function Footer() {
   return (
     <footer className="bg-white border-t border-ct-border mt-6">
-      <div className="max-w-[1260px] mx-auto px-5 py-8">
-        <div className="grid grid-cols-5 gap-6 pb-6 border-b border-ct-border-light">
+      <div className="max-w-[1260px] mx-auto px-3 sm:px-5 py-6 sm:py-8">
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4 sm:gap-6 pb-6 border-b border-ct-border-light">
           {Object.entries(footerCols).map(([heading, links]) => (
             <div key={heading}>
               <p className="text-[10px] font-bold text-[#1a1a1a] uppercase tracking-wider mb-3">{heading}</p>
@@ -618,7 +679,7 @@ function Footer() {
             </div>
           ))}
         </div>
-        <div className="pt-4 flex items-center justify-between">
+        <div className="pt-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
           <div className="flex items-center gap-2">
             <Image src="/logo.png" alt="Cleartrip" width={100} height={28} className="h-7 w-auto object-contain" />
             <span className="text-[9px] text-[#bbb] italic border-l border-ct-border pl-2">A Flipkart Company</span>
@@ -637,58 +698,218 @@ function Footer() {
   );
 }
 
-/* ─── NVS Hero Badge ─────────────────────────────────────── */
-function NVSHeroBadge() {
+/* ─── Plan Trip Modal ────────────────────────────────────── */
+type ItineraryStop = { n: number; time: string; place: string; sub: string; top: string; left: string };
+
+const DAY_1_STOPS: ItineraryStop[] = [
+  { n: 1, time: "8:00 AM", place: "Ferry Building",  sub: "Waterfront market & breakfast", top: "32%", left: "62%" },
+  { n: 2, time: "10:00 AM", place: "Coit Tower",     sub: "Telegraph Hill viewpoint",      top: "28%", left: "55%" },
+  { n: 3, time: "12:30 PM", place: "Chinatown",      sub: "Dim sum lunch on Grant Ave",    top: "36%", left: "50%" },
+  { n: 4, time: "3:00 PM",  place: "Mission District", sub: "Murals & Dolores Park",       top: "62%", left: "44%" },
+];
+
+const DAY_2_STOPS: ItineraryStop[] = [
+  { n: 5, time: "9:00 AM",  place: "Golden Gate Park",  sub: "Japanese Tea Garden",  top: "44%", left: "22%" },
+  { n: 6, time: "12:00 PM", place: "Haight-Ashbury",    sub: "Vintage cafés & shops", top: "50%", left: "38%" },
+  { n: 7, time: "4:00 PM",  place: "Twin Peaks",        sub: "Sunset city panorama",  top: "70%", left: "40%" },
+];
+
+function StopRow({ s }: { s: ItineraryStop }) {
   return (
-    <div className="rounded-[8px] overflow-hidden shadow-md w-[88px] shrink-0">
-      <div className="bg-[#0a1f6e] px-2 py-1.5 text-center">
-        <p className="text-[7px] font-extrabold text-white uppercase tracking-widest leading-tight">NATION</p>
-        <p className="text-[7px] font-extrabold text-white uppercase tracking-widest leading-tight">VACATION</p>
-        <p className="text-[9px] font-extrabold text-[#FFD600] uppercase tracking-wider leading-tight">SALE</p>
+    <div className="flex gap-3 py-2.5">
+      <div className="shrink-0 w-7 h-7 rounded-full bg-ct-blue text-gray-600 text-[11px] font-extrabold flex items-center justify-center shadow-[0_1px_3px_rgba(0,0,0,0.15)]">
+        {s.n}
       </div>
-      <Button className="w-full bg-ct-orange hover:bg-ct-orange-dark text-white text-[8px] font-bold py-1 h-auto flex items-center justify-center gap-0.5 rounded-none">
-        <svg width="6" height="8" viewBox="0 0 6 8" fill="white"><polygon points="0,0 6,4 0,8"/></svg>
-        Live now
-      </Button>
+      <div className="min-w-0 flex-1">
+        <p className="text-[10.5px] font-semibold text-[#888]">{s.time}</p>
+        <p className="text-[13px] font-semibold text-[#1a1a1a] leading-tight truncate">{s.place}</p>
+        <p className="text-[11px] text-[#666] truncate">{s.sub}</p>
+      </div>
+    </div>
+  );
+}
+
+function PlanTripModal({ onClose }: { onClose: () => void }) {
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [onClose]);
+
+  const allStops = [...DAY_1_STOPS, ...DAY_2_STOPS];
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center px-4 py-6 bg-black/40 backdrop-blur-[2px] animate-in fade-in duration-200"
+      onClick={onClose}
+    >
+      <div
+        onClick={(e) => e.stopPropagation()}
+        className="relative w-full max-w-[820px] max-h-[92vh] overflow-hidden bg-white rounded-[16px] shadow-[0_20px_60px_rgba(0,0,0,0.25)] flex flex-col animate-in zoom-in-95 fade-in duration-200"
+      >
+        {/* Close */}
+        <button
+          onClick={onClose}
+          aria-label="Close"
+          className="absolute top-3.5 right-3.5 w-8 h-8 rounded-[8px] border border-ct-border bg-white flex items-center justify-center text-[#666] hover:bg-[#f5f7fa] hover:text-[#1a1a1a] transition-colors z-20"
+        >
+          <X size={14} weight="bold" />
+        </button>
+
+        {/* Header */}
+        <div className="px-6 pt-6 pb-4 shrink-0">
+          <Badge className="bg-[#e8f1ff] text-ct-blue text-[10px] font-bold tracking-wide px-2.5 py-1 h-auto rounded-full mb-3 hover:bg-[#e8f1ff]">
+            <Sparkle size={10} weight="fill" className="mr-1" />
+            NEW
+          </Badge>
+          <h2 className="text-[24px] sm:text-[26px] font-extrabold text-[#1a1a1a] leading-tight tracking-tight">
+            Plan it perfectly with Cleartrip
+          </h2>
+          <p className="text-ct-sm text-[#666] mt-1.5">
+            Waterfront to Twin Peaks — a 2-day route through San Francisco.
+          </p>
+        </div>
+
+        {/* Body: map + scrollable itinerary */}
+        <div className="flex flex-col md:flex-row gap-4 px-6 pb-2 min-h-0 flex-1">
+          {/* Map column */}
+          <div className="relative flex-1 min-w-0 rounded-[12px] overflow-hidden border border-ct-border bg-[#eef3f8] h-[300px] md:h-auto md:min-h-[420px]">
+            <iframe
+              title="Trip map"
+              src="https://www.openstreetmap.org/export/embed.html?bbox=-122.5200%2C37.7100%2C-122.3850%2C37.8150&layer=mapnik"
+              className="absolute inset-0 w-full h-full border-0"
+              loading="lazy"
+            />
+            {/* Pin overlay */}
+            <div className="absolute inset-0 pointer-events-none">
+              {allStops.map((s) => (
+                <div
+                  key={s.n}
+                  className="absolute -translate-x-1/2 -translate-y-full"
+                  style={{ top: s.top, left: s.left }}
+                >
+                  <div className="relative">
+                    <div className="w-8 h-8 rounded-full bg-ct-orange border-[3px] border-white shadow-[0_3px_8px_rgba(0,0,0,0.25)] flex items-center justify-center text-[12px] font-extrabold text-white">
+                      {s.n}
+                    </div>
+                    <div className="absolute left-1/2 -translate-x-1/2 -bottom-1.5 w-0 h-0 border-l-[6px] border-l-transparent border-r-[6px] border-r-transparent border-t-[8px] border-t-white" />
+                  </div>
+                </div>
+              ))}
+            </div>
+            {/* Map title chip */}
+            <div className="absolute top-3 left-3 bg-white/95 backdrop-blur-sm rounded-[8px] px-3 py-1.5 shadow-[0_2px_8px_rgba(0,0,0,0.12)] flex items-center gap-1.5">
+              <MapPin size={12} weight="fill" className="text-ct-orange" />
+              <span className="text-[11px] font-semibold text-[#1a1a1a]">San Francisco</span>
+            </div>
+          </div>
+
+          {/* Itinerary column (scrollable) */}
+          <div
+            className="md:w-[280px] shrink-0 rounded-[12px] border border-ct-border bg-white overflow-y-auto max-h-[300px] md:max-h-none"
+            style={{ scrollbarWidth: "thin" }}
+          >
+            <div className="px-4 pt-4 pb-2 sticky top-0 bg-white border-b border-ct-border-light z-10">
+              <p className="text-[10px] font-bold uppercase tracking-wider text-ct-blue">Day 1</p>
+              <p className="text-[13px] font-semibold text-[#1a1a1a]">Waterfront & Mission</p>
+            </div>
+            <div className="px-4 divide-y divide-ct-border-light">
+              {DAY_1_STOPS.map((s) => <StopRow key={s.n} s={s} />)}
+            </div>
+
+            <div className="px-4 pt-4 pb-2 sticky top-0 bg-white border-y border-ct-border-light z-10">
+              <p className="text-[10px] font-bold uppercase tracking-wider text-ct-blue">Day 2</p>
+              <p className="text-[13px] font-semibold text-[#1a1a1a]">Parks & Peaks</p>
+            </div>
+            <div className="px-4 pb-3 divide-y divide-ct-border-light">
+              {DAY_2_STOPS.map((s) => <StopRow key={s.n} s={s} />)}
+            </div>
+          </div>
+        </div>
+
+        {/* Footer */}
+        <div className="flex items-center justify-between gap-3 px-6 py-4 border-t border-ct-border-light shrink-0">
+          <p className="text-[11px] text-[#888]">7 stops · 2 days · Customisable</p>
+          <Button
+            onClick={onClose}
+            className="bg-ct-orange hover:bg-ct-orange-dark text-white font-bold px-5 py-2.5 h-auto rounded-[8px] shadow-sm gap-1.5"
+          >
+            <PaperPlaneTilt size={14} weight="fill" className="text-white" />
+            Plan a trip
+            {/* <ArrowRight size={14} weight="bold" /> */}
+          </Button>
+        </div>
+      </div>
     </div>
   );
 }
 
 /* ─── Page ───────────────────────────────────────────────── */
 export default function Home() {
+  const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
+  const [planModalOpen, setPlanModalOpen] = useState(false);
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const triggeredRef = useRef(false);
+
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (!el) return;
+    const onScroll = () => {
+      if (triggeredRef.current) return;
+      if (el.scrollTop > 480) {
+        triggeredRef.current = true;
+        setPlanModalOpen(true);
+      }
+    };
+    el.addEventListener("scroll", onScroll, { passive: true });
+    return () => el.removeEventListener("scroll", onScroll);
+  }, []);
   return (
-    <div className="h-screen flex overflow-hidden bg-white">
-      <AppSidebar active="flights" />
+    <div className="h-screen flex overflow-hidden bg-white relative">
+      <AppSidebar
+        active="flights"
+        mobileOpen={mobileSidebarOpen}
+        onMobileClose={() => setMobileSidebarOpen(false)}
+      />
+
+      {planModalOpen && <PlanTripModal onClose={() => setPlanModalOpen(false)} />}
 
       {/* Main scrollable content */}
-      <div className="flex-1 overflow-y-auto bg-[#f8f9fa]" style={{ scrollbarWidth: "thin" }}>
+      <div ref={scrollRef} className="flex-1 overflow-y-auto bg-[#f8f9fa] w-full" style={{ scrollbarWidth: "thin" }}>
+        {/* Mobile top bar with hamburger */}
+        <div className="lg:hidden flex items-center gap-2 px-3 py-2.5 bg-white border-b border-[#ebebeb] sticky top-0 z-30">
+          <button
+            onClick={() => setMobileSidebarOpen(true)}
+            aria-label="Open menu"
+            className="w-9 h-9 flex items-center justify-center rounded-full border border-[#e5e7eb] text-[#555] hover:bg-[#f5f5f5]"
+          >
+            <MenuIcon size={16} />
+          </button>
+          <span className="text-[14px] font-semibold text-[#1a1a1a]">Flights</span>
+        </div>
+
         {/* Hero section */}
-        <div className="pb-8">
-          <div className="max-w-[1060px] mx-auto px-5 pt-6">
-            <div className="flex gap-5">
+        <div className="pb-6 lg:pb-8">
+          <div className="max-w-[1060px] mx-auto px-3 sm:px-5 pt-4 lg:pt-10">
+            <div className="flex flex-col lg:flex-row gap-4 lg:gap-5">
               <div className="flex-1 min-w-0">
-                <div className="flex items-start justify-between mb-3">
-                  <div>
-                    <h1 className="text-[30px] font-extrabold text-[#1a1a1a] leading-tight tracking-tight">
-                      Biggest discounts on Flights
-                    </h1>
-                    <p className="text-[14px] text-[#555] mt-1.5">
-                      Up to 25% off&nbsp;|&nbsp;Flights from ₹999&nbsp;|&nbsp;Free Visa Rejection Cover
-                    </p>
-                  </div>
-                  <NVSHeroBadge />
+                <div className="mb-3">
+                  <h1 className="text-[20px] sm:text-[22px] lg:text-[24px] font-extrabold text-[#1a1a1a] leading-tight tracking-tight">
+                    Book Domestic & International Flight Tickets
+                  </h1>
+                  <p className="text-[12.5px] sm:text-[13px] text-[#666] mt-1">
+                    Enjoy hassle free flight ticket bookings at lowest airfare
+                  </p>
                 </div>
                 <FlightSearch />
-
-                {/* AI Planner entry-point banner */}
-                
+                <RecentSearches />
               </div>
               <SidePanel />
             </div>
           </div>
         </div>
 
-        <div className="max-w-[1060px] mx-auto px-5 py-5">
+        <div className="max-w-[1060px] mx-auto px-3 sm:px-5 py-5">
           <div className="mb-5"><OfferCardGrid /></div>
           <div className="mb-5"><PromoBanner /></div>
           <div className="mb-5"><PopularDestinations /></div>

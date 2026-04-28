@@ -106,17 +106,17 @@ export function SiteHeader({ active, hideNav = false }: { active: ActiveTab; hid
     <header className="bg-white sticky top-0 z-50">
       {/* ── Top utility bar ── */}
       <div className="border-b border-[#ebebeb]">
-        <div className="max-w-[1260px] mx-auto px-5 h-[48px] flex items-center justify-between">
+        <div className="max-w-[1260px] mx-auto px-3 sm:px-5 h-[48px] flex items-center justify-between">
           {/* Logo */}
           <Link href="/" className="flex items-center gap-2">
-            <Image src="/logo.png" alt="Cleartrip" width={120} height={32} className="h-8 w-auto object-contain" />
-            <span className="text-[11px] text-[#999] italic font-normal pl-2 border-l border-ct-border">
+            <Image src="/logo.png" alt="Cleartrip" width={120} height={32} className="h-7 sm:h-8 w-auto object-contain" />
+            <span className="hidden sm:inline text-[11px] text-[#999] italic font-normal pl-2 border-l border-ct-border">
               A <span className="font-semibold not-italic">Flipkart</span> Company
             </span>
           </Link>
 
           {/* Utility links */}
-          <div className="flex items-center">
+          <div className="hidden md:flex items-center">
             {[
               { icon: <Ic.Tag />, label: "Offers" },
               { icon: <Ic.Briefcase />, label: "Business", chevron: true },
@@ -149,13 +149,13 @@ export function SiteHeader({ active, hideNav = false }: { active: ActiveTab; hid
       {/* ── Nav tabs ── */}
       {!hideNav && (
         <div className="bg-white border-b border-[#ebebeb]">
-          <div className="max-w-[1260px] mx-auto px-5 flex items-center justify-center">
+          <div className="max-w-[1260px] mx-auto px-3 sm:px-5 flex items-center justify-start lg:justify-center overflow-x-auto">
             {NAV_TABS.map((tab) => (
               <a
                 key={tab.id}
                 href={tab.href}
                 className={cn(
-                  "flex items-center gap-2.5 px-8 py-3.5 text-[15px] border-b-2 transition-colors whitespace-nowrap",
+                  "flex items-center gap-2 lg:gap-2.5 px-3 sm:px-5 lg:px-8 py-3 lg:py-3.5 text-[13px] lg:text-[15px] border-b-2 transition-colors whitespace-nowrap",
                   active === tab.id
                     ? "border-ct-orange text-[#1a1a1a] font-semibold"
                     : "border-transparent text-[#555] hover:text-[#1a1a1a] hover:border-ct-orange",
@@ -169,7 +169,7 @@ export function SiteHeader({ active, hideNav = false }: { active: ActiveTab; hid
             <Link
               href="/"
               className={cn(
-                "flex items-center gap-2 px-8 py-[14px] text-[15px] border-b-2 transition-colors whitespace-nowrap",
+                "flex items-center gap-2 px-3 sm:px-5 lg:px-8 py-3 lg:py-[14px] text-[13px] lg:text-[15px] border-b-2 transition-colors whitespace-nowrap",
                 active === "ai-planner"
                   ? "border-ct-orange text-ct-orange font-semibold"
                   : "border-transparent text-[#555] font-semibold text-[#1a1a1a] hover:border-ct-orange hover:text-ct-orange",

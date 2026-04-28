@@ -101,10 +101,14 @@ export function AppSidebar({
   active,
   onToggleChats,
   showChats,
+  mobileOpen = false,
+  onMobileClose,
 }: {
   active?: SidebarActive;
   onToggleChats?: () => void;
   showChats?: boolean;
+  mobileOpen?: boolean;
+  onMobileClose?: () => void;
 }) {
   const [accountOpen, setAccountOpen] = useState(false);
   const [businessOpen, setBusinessOpen] = useState(false);
@@ -112,7 +116,23 @@ export function AppSidebar({
 
   return (
     <>
-      <aside className="w-[240px] shrink-0 flex flex-col bg-white border-r border-[#e5e7eb] h-full">
+      {/* Mobile backdrop */}
+      {mobileOpen && (
+        <div
+          className="lg:hidden fixed inset-0 bg-black/40 z-40"
+          onClick={onMobileClose}
+        />
+      )}
+      <aside
+        className={cn(
+          "shrink-0 flex flex-col bg-white border-r border-[#e5e7eb] h-full",
+          // Desktop: original 240px column in flow
+          "lg:relative lg:w-[240px] lg:translate-x-0",
+          // Mobile/tablet: fixed off-canvas drawer
+          "fixed top-0 left-0 z-50 w-[260px] transition-transform duration-200 ease-out",
+          mobileOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0",
+        )}
+      >
 
         {/* Logo */}
         <div className="flex justify-start items-center px-2 py-3 border-b border-[#f0f0f0] shrink-0 flex">
@@ -132,13 +152,14 @@ export function AppSidebar({
 
         {/* New trip + optional chat toggle */}
         <div className="px-4 pt-3 pb-2 shrink-0 flex gap-2">
-          <Link
+          <a
             href="/"
+            onClick={(e) => { e.preventDefault(); window.location.assign("/"); }}
             className="flex-1 flex items-center justify-center gap-2 border border-[#e5e7eb] rounded-full py-2 text-[13px] font-semibold text-[#1a1a1a] hover:bg-[#fafafa] transition-colors"
           >
             <Plus size={14} weight="bold" />
             New trip
-          </Link>
+          </a>
           {onToggleChats && (
             <button
               onClick={onToggleChats}
@@ -254,10 +275,10 @@ export function AppSidebar({
         </div>
       </aside>
 
-      {/* Business flyout — fixed, to the right of sidebar */}
+      {/* Business flyout — fixed, to the right of sidebar (desktop only) */}
       {businessOpen && (
         <div
-          className="fixed left-[248px] w-[480px] bg-white border border-[#e5e7eb] rounded-2xl shadow-[0_8px_32px_rgba(0,0,0,0.12)] z-[9999] p-4"
+          className="hidden lg:block fixed left-[248px] w-[480px] bg-white border border-[#e5e7eb] rounded-2xl shadow-[0_8px_32px_rgba(0,0,0,0.12)] z-[9999] p-4"
           style={{ top: businessY }}
           onMouseEnter={() => setBusinessOpen(true)}
           onMouseLeave={() => setBusinessOpen(false)}
@@ -286,10 +307,10 @@ export function AppSidebar({
         </div>
       )}
 
-      {/* My Account flyout — fixed, to the right of sidebar */}
+      {/* My Account flyout — fixed, to the right of sidebar (desktop only) */}
       {accountOpen && (
         <div
-          className="fixed bottom-4 left-[248px] w-[220px] bg-white border border-[#e5e7eb] rounded-2xl shadow-[0_8px_32px_rgba(0,0,0,0.12)] z-[9999] pb-1"
+          className="hidden lg:block fixed bottom-4 left-[248px] w-[220px] bg-white border border-[#e5e7eb] rounded-2xl shadow-[0_8px_32px_rgba(0,0,0,0.12)] z-[9999] pb-1"
           onMouseEnter={() => setAccountOpen(true)}
           onMouseLeave={() => setAccountOpen(false)}
         >

@@ -850,7 +850,7 @@ export default function ChipInputBar({ onStateChange, onSend, placeholder, class
              * Content is always rendered at the correct width with no reflow.
              */}
             <div
-              style={{ width: PANEL_WIDTHS[activeChip] }}
+              style={{ width: `min(${PANEL_WIDTHS[activeChip]}px, calc(100vw - 32px))` }}
               className="bg-white border border-[#e8e8e8] rounded-2xl shadow-[0_8px_40px_rgba(0,0,0,0.10),0_2px_8px_rgba(0,0,0,0.06)] overflow-hidden"
             >
               {/* Header — plain text swap, no AnimatePresence exit */}
