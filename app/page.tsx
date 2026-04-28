@@ -1416,9 +1416,9 @@ function PlanResultView({
         <div>
           <p className="text-[18px] font-bold text-[#1a1a1a]">Here&apos;s your Bali Itinerary</p>
           <div className="flex items-center gap-2 mt-1">
-            <p className={cn("text-[13px] font-semibold", totalOver ? "text-[#ef4444]" : "text-ct-text-muted")}>
+            {/* <p className={cn("text-[13px] font-semibold", totalOver ? "text-[#ef4444]" : "text-ct-text-muted")}>
               {totalOver ? "₹90,496 · ₹10,496 over budget" : "₹72,896 · ₹7,104 under budget ✓"}
-            </p>
+            </p> */}
             <span className="flex items-center gap-1 text-[11px] text-[#22c55e] font-semibold bg-[#dcfce7] border border-[#dcfce7] px-2 py-0.5 rounded-full">
               <svg width="9" height="9" viewBox="0 0 24 24" fill="#22c55e"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>
               4.8 · 127 saves
@@ -1573,18 +1573,18 @@ function PlanResultView({
               <span className="text-[11px] font-semibold text-[#1a1a1a]">4.8</span>
               <span className="text-[11px] text-ct-text-muted">· {activeDay.detail.reviews[0].author} and {activeDay.detail.reviews.length * 47} others visited</span>
             </div>
-            <button
+            {/* <button
               onClick={() => {}}
               className="shrink-0 text-[10.5px] font-semibold text-[#FF4F17] hover:underline"
             >
               See reviews →
-            </button>
+            </button> */}
           </div>
         </div>
       )}
 
       {/* Action buttons */}
-      <div className="flex gap-2 flex-wrap">
+      {/* <div className="flex gap-2 flex-wrap">
         {[
           { label: "Full breakdown", Icon: ListBullets, onClick: undefined },
           { label: "Add a day", Icon: Plus, onClick: handleAddDay },
@@ -1600,7 +1600,7 @@ function PlanResultView({
             {label}
           </button>
         ))}
-      </div>
+      </div> */}
     </div>
   );
 }
@@ -2766,7 +2766,7 @@ function VersionHistoryPanel({
   const ordered = [...versions].reverse();
 
   return (
-    <div className="w-[272px] shrink-0 flex flex-col bg-white border-r border-ct-border">
+    <div className="w-[280px] lg:w-[272px] shrink-0 flex flex-col bg-white border-r border-ct-border h-full">
       {/* Header */}
       <div className="flex items-center justify-between px-4 py-3 border-b border-ct-border-light">
         <div className="flex items-center gap-2 min-w-0">
@@ -3023,7 +3023,7 @@ function RightPanel() {
       );
 
   return (
-    <div className="w-[360px] shrink-0 border-l border-ct-border bg-white overflow-y-auto" style={{ scrollbarWidth: "thin" }}>
+    <div className="w-full lg:w-[360px] shrink-0 border-l border-ct-border bg-white h-full overflow-y-auto" style={{ scrollbarWidth: "thin" }}>
       {/* Popular right now */}
       <div className="px-4 pt-4 pb-3">
         <div className="flex items-center justify-between mb-3">
@@ -3352,7 +3352,7 @@ function HeaderTripChips({
   ];
 
   return (
-    <div ref={ref} className="relative flex items-center gap-1.5">
+    <div ref={ref} className="relative hidden items-center gap-1.5 min-w-0 flex-1 md:flex">
       {chips.map(chip => (
         <button
           key={chip.id}
@@ -4032,13 +4032,14 @@ function StopDetailPanel({
 
 /* ── Map panel ───────────────────────────────────────────── */
 function MapPanel({
-  selectedDay, onSelectDay, days, pulseDay, changedActivityKey,
+  selectedDay, onSelectDay, days, pulseDay, changedActivityKey, onMobileClose,
 }: {
   selectedDay: number;
   onSelectDay: (day: number) => void;
   days: DayPlan[];
   pulseDay?: number;
   changedActivityKey?: string;
+  onMobileClose?: () => void;
 }) {
   const mapDays = days.map(d => ({
     day: d.day,
@@ -4097,10 +4098,19 @@ function MapPanel({
   }
 
   return (
-    <div className="w-[380px] shrink-0 border-l border-ct-border flex flex-col bg-white">
+    <div className="w-full h-full lg:w-[380px] shrink-0 border-l border-ct-border flex flex-col bg-white">
       {/* Map header */}
       <div className="flex items-center justify-between px-4 py-4 border-b border-ct-border-light shrink-0">
         <div className="flex items-center gap-2">
+          {onMobileClose && (
+            <button
+              onClick={onMobileClose}
+              aria-label="Close map"
+              className="lg:hidden w-7 h-7 flex items-center justify-center rounded-full hover:bg-ct-surface-subtle text-ct-text-secondary"
+            >
+              <X size={14} />
+            </button>
+          )}
           <div className="w-6 h-6 rounded-lg bg-ct-action-active flex items-center justify-center">
             <MapPin size={13} color="white" weight="fill" />
           </div>
@@ -4286,6 +4296,7 @@ function ChatArea({
   onStart, onPick, onAnswer, onSkip, chipCtx, onChipChange, onNewChat, selectedDay, onSelectDay, endRef,
   days, setDays, onSwapHighlight, onResultsMessage, onSwapApply, onCardApply, onSaveTrip, onLogChange,
   hasSaved, unsavedChanges, regenPending, onRegenerate,
+  onOpenMobileSidebar, onOpenMobileMap,
 }: {
   stage: Stage;
   msgs: Msg[];
@@ -4317,6 +4328,8 @@ function ChatArea({
   unsavedChanges: string[];
   regenPending: boolean;
   onRegenerate: () => void;
+  onOpenMobileSidebar?: () => void;
+  onOpenMobileMap?: () => void;
 }) {
   const showCard = (stage === "q1" || stage === "q2" || stage === "q3") && currentQ !== null;
 
@@ -4325,19 +4338,35 @@ function ChatArea({
   }
 
   return (
-    <div className="flex-1 flex flex-col min-h-0 bg-[#fafafa]">
+    <div className="flex-1 flex flex-col min-h-0 bg-[#fafafa] w-full lg:w-auto">
       {/* Top bar */}
-      <div className="flex items-center gap-3 px-4 py-3 bg-white border-b border-ct-border shrink-0">
-        {/* <p className="text-[15px] font-bold text-[#1a1a1a] shrink-0">New Chat</p> */}
+      <div className="flex items-center gap-2 lg:gap-3 px-3 lg:px-4 py-3 bg-white border-b border-ct-border shrink-0">
+        {/* Mobile hamburger */}
+        <button
+          onClick={onOpenMobileSidebar}
+          aria-label="Open menu"
+          className="lg:hidden w-9 h-9 flex items-center justify-center rounded-full border border-ct-border text-ct-text-secondary hover:bg-ct-surface-subtle shrink-0"
+        >
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><line x1="4" y1="7" x2="20" y2="7"/><line x1="4" y1="12" x2="20" y2="12"/><line x1="4" y1="17" x2="20" y2="17"/></svg>
+        </button>
         {chipCtx && (
           <HeaderTripChips ctx={chipCtx} onCtxChange={onChipChange} onNewChat={onNewChat} />
         )}
         <div className="flex items-center gap-2 ml-auto shrink-0">
-          
-          <button className="text-[12px] font-semibold text-ct-text-secondary border border-ct-border px-3.5 py-1.5 rounded-full hover:bg-ct-surface-subtle transition-colors">
+         
+          {stage === "results" && (
+            <button
+              onClick={onOpenMobileMap}
+              aria-label="Open map"
+              className="lg:hidden w-9 h-9 flex items-center justify-center rounded-full border border-ct-border text-ct-text-secondary hover:bg-ct-surface-subtle shrink-0"
+            >
+              <MapPin size={15} />
+            </button>
+          )}
+          <button className="hidden sm:inline-flex text-[12px] font-semibold text-ct-text-secondary border border-ct-border px-3.5 py-1.5 rounded-full hover:bg-ct-surface-subtle transition-colors">
             Invite
           </button>
-          <button className="flex items-center gap-1.5 text-[12px] font-semibold text-ct-text-secondary border border-ct-border px-3.5 py-1.5 rounded-full hover:bg-ct-surface-subtle transition-colors">
+          <button className="hidden md:flex items-center gap-1.5 text-[12px] font-semibold text-ct-text-secondary border border-ct-border px-3.5 py-1.5 rounded-full hover:bg-ct-surface-subtle transition-colors">
             <Globe size={13} className="text-ct-action-icon" />
             English
             <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><polyline points="6 9 12 15 18 9" /></svg>
@@ -4375,12 +4404,12 @@ function ChatArea({
               />
 
               {/* Hero content */}
-              <div className="relative max-w-[760px] mx-auto px-6 pt-12 pb-16">
+              <div className="relative max-w-[760px] mx-auto px-4 sm:px-6 pt-8 sm:pt-12 pb-12 sm:pb-16">
                 <div className="inline-flex items-center gap-1.5 text-[10.5px] font-semibold tracking-[0.06em] uppercase text-ct-orange bg-white/85 backdrop-blur-sm rounded-full px-2.5 py-1 mb-4">
                   <Sparkle size={10} weight="fill" />
                   AI travel concierge
                 </div>
-                <h1 className="text-[30px] font-medium text-[#1a1a1a] leading-[1.1] tracking-tight">
+                <h1 className="text-[24px] sm:text-[30px] font-medium text-[#1a1a1a] leading-[1.1] tracking-tight">
                   Hey there, <span className="bg-gradient-to-r from-ct-orange to-[#ff7a3d] bg-clip-text text-transparent">Traveller</span>
                   {/* <span
                     aria-hidden
@@ -4397,7 +4426,7 @@ function ChatArea({
             </div>
 
             {/* Page body — pulled up to overlap the banner's gradient blend */}
-            <div className="max-w-[760px] mx-auto px-6 -mt-8 relative pb-2">
+            <div className="max-w-[760px] mx-auto px-4 sm:px-6 -mt-8 relative pb-2">
 
             {/* Featured trip starters */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-6">
@@ -4538,7 +4567,7 @@ function ChatArea({
 
         {/* Active conversation */}
         {stage !== "idle" && (
-          <div className="max-w-[620px] mx-auto space-y-5">
+          <div className="max-w-[620px] mx-auto space-y-5 px-3 sm:px-4 lg:px-0">
             {msgs.map(msg => {
               if (msg.kind === "user-init") return (
                 <div key={msg.id} className="flex justify-end mt-10">
@@ -4656,7 +4685,7 @@ function ChatArea({
       </div>
 
       {/* Bottom input area */}
-      <div className="shrink-0 px-6 pb-5 max-w-[700px] mx-auto w-full">
+      <div className="shrink-0 px-3 sm:px-6 pb-3 sm:pb-5 max-w-[700px] mx-auto w-full">
         {showCard && currentQ && (
           <QuestionCard q={currentQ} qIdx={qIdx} selected={selected}
             onPick={onPick} onSubmit={onAnswer} onSkip={onSkip} />
@@ -4819,6 +4848,8 @@ export default function AIPlanner() {
   }
 
   const [showChatsPanel, setShowChatsPanel] = useState(false);
+  const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
+  const [mobileMapOpen, setMobileMapOpen] = useState(false);
   const [selectedDay, setSelectedDay] = useState(1);
   const [days, setDays] = useState<DayPlan[]>(BALI_PLAN);
   const [pulseDay, setPulseDay] = useState<number | undefined>(undefined);
@@ -5167,21 +5198,36 @@ export default function AIPlanner() {
   }
 
   return (
-    <div className="h-screen flex overflow-hidden bg-white">
-      <AppSidebar active="ai-planner" onToggleChats={() => setShowChatsPanel(p => !p)} showChats={showChatsPanel} />
+    <div className="h-screen flex overflow-hidden bg-white relative">
+      <AppSidebar
+        active="ai-planner"
+        onToggleChats={() => setShowChatsPanel(p => !p)}
+        showChats={showChatsPanel}
+        mobileOpen={mobileSidebarOpen}
+        onMobileClose={() => setMobileSidebarOpen(false)}
+      />
       {showChatsPanel && (
-        <VersionHistoryPanel
-          versions={versions}
-          currentVersionId={currentVersionId}
-          hasActiveChat={stage !== "idle"}
-          lastChangeNote={pendingChange.label}
-          unsavedChanges={pendingChange.changes}
-          chipCtx={chipCtx}
-          days={days}
-          onRestore={handleRestoreVersion}
-          onNew={() => { resetToIdle(); }}
-          onClose={() => setShowChatsPanel(false)}
-        />
+        <>
+          {/* Mobile backdrop for version panel */}
+          <div
+            className="lg:hidden fixed inset-0 bg-black/40 z-40"
+            onClick={() => setShowChatsPanel(false)}
+          />
+          <div className="lg:contents fixed top-0 left-0 z-50 h-full">
+            <VersionHistoryPanel
+              versions={versions}
+              currentVersionId={currentVersionId}
+              hasActiveChat={stage !== "idle"}
+              lastChangeNote={pendingChange.label}
+              unsavedChanges={pendingChange.changes}
+              chipCtx={chipCtx}
+              days={days}
+              onRestore={handleRestoreVersion}
+              onNew={() => { resetToIdle(); }}
+              onClose={() => setShowChatsPanel(false)}
+            />
+          </div>
+        </>
       )}
       <ChatArea
         stage={stage}
@@ -5214,17 +5260,41 @@ export default function AIPlanner() {
         unsavedChanges={pendingChange.changes}
         regenPending={regenPending}
         onRegenerate={handleRegenerate}
+        onOpenMobileSidebar={() => setMobileSidebarOpen(true)}
+        onOpenMobileMap={() => setMobileMapOpen(true)}
       />
       {stage === "results" ? (
-        <MapPanel
-          selectedDay={selectedDay}
-          onSelectDay={setSelectedDay}
-          days={days}
-          pulseDay={pulseDay}
-          changedActivityKey={changedActivityKey}
-        />
+        <>
+          {/* Mobile backdrop for map */}
+          {mobileMapOpen && (
+            <div
+              className="lg:hidden fixed inset-0 bg-black/40 z-40"
+              onClick={() => setMobileMapOpen(false)}
+            />
+          )}
+          <div
+            className={cn(
+              // Desktop: original 380px column inline
+              "lg:relative lg:translate-x-0 lg:block",
+              // Mobile/tablet: fixed slide-in drawer from right
+              "fixed top-0 right-0 z-50 h-full w-[88vw] max-w-[400px] transition-transform duration-200 ease-out shadow-2xl lg:shadow-none",
+              mobileMapOpen ? "translate-x-0" : "translate-x-full lg:translate-x-0",
+            )}
+          >
+            <MapPanel
+              selectedDay={selectedDay}
+              onSelectDay={setSelectedDay}
+              days={days}
+              pulseDay={pulseDay}
+              changedActivityKey={changedActivityKey}
+              onMobileClose={() => setMobileMapOpen(false)}
+            />
+          </div>
+        </>
       ) : showRightPanel ? (
-        <RightPanel />
+        <div className="hidden lg:block h-full">
+          <RightPanel />
+        </div>
       ) : null}
     </div>
   );

@@ -9,7 +9,7 @@ export const metadata = {
 export default function NotFound() {
   return (
     <main
-      className="relative min-h-screen w-full overflow-hidden bg-[#F8D5CC]"
+      className="relative min-h-screen w-full overflow-hidden bg-[#F8F0F0]"
       style={{
         backgroundImage: "url(/luggage.svg)",
         backgroundSize: "cover",
@@ -38,7 +38,7 @@ export default function NotFound() {
       />
 
       {/* Top-left: Cleartrip logo */}
-      <header className="absolute right-6 top-6 ">
+      <header className="absolute right-2 top-2 md:right-6 md:top-6 ">
         <Link href="/" aria-label="Cleartrip home" className="inline-block">
           <Image
             src="/logo.png"
@@ -77,18 +77,18 @@ export default function NotFound() {
 
         <h1
           className="mt-3 flex items-baseline gap-1 font-bold leading-[0.85] tracking-[-0.04em] text-ct-text"
-          style={{ fontSize: "clamp(96px, 17vw, 100px)" }}
+          style={{ fontSize: "clamp(40px, 17vw, 100px)" }}
         >
           <span>4</span>
           <span className="text-ct-orange italic">0</span>
           <span className="pl-3">4</span>
         </h1>
 
-        <p className="mt-2 text-ct-2xl font-semibold tracking-tight text-ct-text sm:text-ct-3xl">
+        <p className="mt-2 text-ct-xl font-semibold tracking-tight text-ct-text sm:text-ct-3xl">
           Page not found.
         </p>
 
-        <p className="mt-3 max-w-md text-ct-md leading-relaxed text-ct-text-secondary">
+        <p className="mt-3 max-w-md text-ct-sm md:text-ct-md leading-relaxed text-ct-text-secondary">
           Looks like this page took an unscheduled layover. The bags are here,
           the traveller&apos;s napping, but the URL you&apos;re after never
           made it past baggage claim.
