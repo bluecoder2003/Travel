@@ -20,7 +20,7 @@
   --color-ct-orange-border: #ffd4c4;   /* Orange-tint border    */
 
   /* ── Text ───────────────────────────────────────────────── */
-  --color-ct-text:          #1a1a1a;   /* Body copy, headings   */
+  --color-ct-text:          #151515;   /* Body copy, headings   */
   --color-ct-text-ui:       #505050;   /* UI labels on dark bg  */
   --color-ct-text-secondary:#555555;   /* Secondary copy        */
   --color-ct-text-muted:    #888888;   /* Captions, metadata    */
@@ -29,7 +29,7 @@
   --color-ct-text-disabled: #cccccc;   /* Disabled elements     */
 
   /* ── Interactive (dark UI elements) ─────────────────────── */
-  --color-ct-action:        #505050;   /* Dark buttons, chips   */
+  --color-ct-action:        #151515;   /* Dark buttons, chips   */
   --color-ct-action-hover:  #404040;   /* Dark button hover     */
   --color-ct-action-icon:   #666666;   /* Default icon color    */
   --color-ct-action-active: #555555;   /* Active borders/rings  */

@@ -169,12 +169,12 @@ function WherePanel({ value, onChange }: { value: string; onChange: (v: string) 
                 initial={{ opacity: 0, y: 6 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ ...softSpring, delay: i * 0.03 }}
-                whileHover={{ scale: 1.04, y: -1 }}
+                whileHover={{ scale: 1.02, y: -1 }}
                 whileTap={{ scale: 0.97 }}
                 onClick={() => { setQuery(dest.name); onChange(dest.name); }}
                 className={cn(
-                  "relative flex flex-col rounded-xl overflow-hidden border-2 transition-colors",
-                  selected ? "border-[#FF4F17]" : "border-transparent hover:border-[#FF4F17]/50",
+                  "relative flex flex-col rounded-xl overflow-hidden border transition-colors",
+                  selected ? "border-[#FF4F17]" : "border-transparent hover:border-gray-200",
                 )}
               >
                 {/* Photo */}
