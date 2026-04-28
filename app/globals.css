@@ -295,3 +295,16 @@
     @apply text-[11px] font-medium tracking-[0.06em] uppercase text-ct-text-subtle select-none;
   }
 }
+
+/* ── Leaflet tooltip override (place card style) ─────────── */
+.leaflet-tooltip.ct-place-tooltip {
+  background: transparent !important;
+  border: 0 !important;
+  box-shadow: none !important;
+  padding: 0 !important;
+  border-radius: 0 !important;
+  white-space: normal !important;
+}
+.leaflet-tooltip.ct-place-tooltip::before {
+  display: none !important;
+}
