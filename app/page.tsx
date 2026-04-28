@@ -1523,7 +1523,7 @@ function PlanResultView({
                 </div>
               )}
             </div>
-            <div className="bg-white px-3 py-2">
+            <div className="bg-white h-full px-3 py-2">
               <p className="text-[10px] text-ct-text-muted">{d.tag}</p>
               <div className="mt-1.5 space-y-0.5">
                 {d.activities.slice(0, 2).map((a, i) => (
@@ -1579,6 +1579,7 @@ function PlanResultView({
                 day={activeDay}
                 onSwap={handleSwap}
                 onAdd={handleAdd}
+                onRemove={handleRemove}
                 onClose={() => setCustomizingDayId(null)}
               />
             </div>
@@ -1598,7 +1599,7 @@ function PlanResultView({
                 {activeDay.activities.map((act, i) => {
                   const dayIdx = days.findIndex(d => d.day === activeDay.day);
                   return (
-                    <div key={i} className="group flex items-center gap-3">
+                    <div key={i} className="flex items-center gap-3">
                       <div className="w-8 h-8 rounded-xl bg-[#f5f5f5] flex items-center justify-center shrink-0">
                         <ActivityIcon type={act.type} size={15} />
                       </div>
@@ -1606,15 +1607,6 @@ function PlanResultView({
                         <p className="text-[13px] font-semibold text-[#1a1a1a] leading-tight">{act.name}</p>
                         <p className="text-[10.5px] text-ct-text-subtle mt-0.5">{act.time}</p>
                       </div>
-                      {act.type !== "flight" && act.type !== "hotel" && (
-                        <button
-                          onClick={() => handleRemove(dayIdx, i)}
-                          className="opacity-0 group-hover:opacity-100 w-6 h-6 rounded-full bg-[#fee2e2] flex items-center justify-center shrink-0 transition-opacity hover:bg-[#fecaca]"
-                          title="Remove activity"
-                        >
-                          <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="#dc2626" strokeWidth="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
-                        </button>
-                      )}
                     </div>
                   );
                 })}
@@ -1755,7 +1747,7 @@ function PlanningMsg({ step }: { step: number }) {
                   <span key={i} className="w-[3px] h-[3px] rounded-full bg-[#bbb] animate-bounce" style={{ animationDelay: `${i * 160}ms` }} />
                 ))}
               </span>
-              <span className="text-[11px] font-medium tracking-[0.07em] uppercase text-ct-text-subtle select-none">Working on it</span>
+              <span className="text-[11px] font-medium tracking-[0.07em] uppercase text-ct-text-subtle select-none">thinking</span>
             </div>
           )}
 
@@ -1849,6 +1841,10 @@ function Spark() {
   );
 }
 
+function SparkSlot({ show }: { show: boolean }) {
+  return show ? <Spark /> : null;
+}
+
 function SummaryBubble({ pairs }: { pairs: SummaryPair[] }) {
   return (
     <div className="flex justify-end">
@@ -1911,8 +1907,8 @@ const BREAKDOWN_ROWS = [
 function TripBreakdown() {
   const [open, setOpen] = useState<string | null>(null);
   return (
-    <div className="bg-white border border-ct-border rounded-2xl overflow-hidden shadow-sm">
-      <div className="px-4 py-3 border-b border-ct-border-light flex items-center justify-between bg-[#fafbfd]">
+    <div className="bg-white rounded-2xl overflow-hidden">
+      <div className="px-4 py-3 border-b border-ct-border-light flex items-center justify-between">
         <div>
           <p className="text-[11px] uppercase tracking-wide text-ct-text-subtle font-semibold">Trip total</p>
           <p className="text-[18px] font-bold text-[#1a1a1a] mt-0.5">₹63,094</p>
@@ -1928,9 +1924,9 @@ function TripBreakdown() {
           <div key={row.id} className={cn("border-b border-ct-border-light", i === BREAKDOWN_ROWS.length - 1 && "border-b-0")}>
             <button
               onClick={() => setOpen(isOpen ? null : row.id)}
-              className="w-full flex items-center gap-3 px-4 py-3.5 hover:bg-[#fafbfd] transition-colors text-left"
+              className="w-full flex items-center gap-3 px-4 py-3.5 text-left"
             >
-              <div className="w-8 h-8 rounded-lg bg-[#fafbfd] border border-ct-border-light flex items-center justify-center shrink-0">
+              <div className="w-8 h-8 rounded-lg bg-[#fafbfd] flex items-center justify-center shrink-0">
                 <row.Icon size={16} color={row.iconColor} weight="duotone" />
               </div>
               <div className="flex-1 min-w-0">
@@ -1947,7 +1943,7 @@ function TripBreakdown() {
               </svg>
             </button>
             {isOpen && (
-              <div className="px-4 pb-3 bg-[#fafbfd]">
+              <div className="px-4 pb-3">
                 <div className="border-l-2 border-ct-border pl-3 space-y-2">
                   {row.detail.map((d, di) => (
                     <div key={di} className="flex items-start justify-between gap-3">
@@ -2023,12 +2019,12 @@ function TripBundleCard({
   ];
 
   return (
-    <div className="bg-white border border-ct-border rounded-2xl overflow-hidden shadow-sm">
+    <div className="bg-white border border-ct-border rounded-2xl overflow-hidden">
       {/* Header */}
       <div className="px-4 py-3 bg-gradient-to-br from-[#fafbfd] to-white border-b border-ct-border-light">
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">
-            <p className="text-[10.5px] uppercase tracking-[0.08em] font-bold text-ct-text-subtle">Trip overview</p>
+            {/* <p className="text-[10.5px] uppercase tracking-[0.08em] font-bold text-ct-text-subtle">Trip overview</p> */}
             <p className="text-[15px] font-bold text-[#1a1a1a] mt-0.5 leading-tight">Your Bali plan is ready</p>
             <p className="text-[11.5px] text-ct-text-muted mt-1">Tap a section to review, swap, or override anything.</p>
           </div>
@@ -2662,7 +2658,7 @@ function SwapCarousel({
     onApply(opt);
   }
   return (
-    <div className="bg-white border border-ct-border rounded-2xl p-3.5 shadow-sm">
+    <div className="bg-white rounded-2xl p-3.5">
       <div className="flex items-center justify-between mb-2.5">
         <div>
           <p className="text-[12.5px] font-bold text-[#1a1a1a]">
@@ -2773,7 +2769,7 @@ function RichCards({ set, onApply }: { set: CardSet; onApply: (card: RichCard) =
     onApply(card);
   }
   return (
-    <div className="bg-white border border-ct-border rounded-2xl p-3.5 shadow-sm">
+    <div className="bg-white rounded-2xl p-3.5">
       <div className="flex items-center justify-between mb-2.5 gap-2">
         <div className="min-w-0">
           <p className="text-[12.5px] font-bold text-[#1a1a1a]">{cfg.title}</p>
@@ -4483,15 +4479,15 @@ function MapPanel({
                       key={a.key}
                       onClick={() => openStop(a.key)}
                       className={cn(
-                        "flex-none w-[124px] rounded-xl overflow-hidden border bg-white text-left transition-all hover:shadow-sm",
+                        "flex-none w-[124px] overflow-hidden border bg-white text-left transition-all",
                         isSelected
                           ? "border-ct-orange ring-2 ring-ct-orange/15"
                           : justChanged
                             ? "border-ct-orange shadow-md"
-                            : "border-ct-border-light hover:border-ct-border-medium",
+                            : "border-transparent ",
                       )}
                     >
-                      <div className="relative w-full aspect-[4/3] bg-ct-surface-deep overflow-hidden">
+                      <div className="relative w-full aspect-[4/3] bg-ct-surface-deep overflow-hidden rounded-xl">
                         {a.img && (
                           // eslint-disable-next-line @next/next/no-img-element
                           <img src={a.img} alt={a.name} className="w-full h-full object-cover" loading="lazy" />
@@ -4502,7 +4498,7 @@ function MapPanel({
                         )}>{i + 1}</div>
                         <span className="absolute bottom-1.5 left-1.5 inline-flex items-center gap-1 bg-white/95 backdrop-blur text-[8.5px] font-bold uppercase tracking-wider text-ct-text px-1.5 py-0.5 rounded-full shadow-sm">
                           <meta.Icon size={9} weight="bold" />
-                          {meta.label}
+                          {/* {meta.label} */}
                         </span>
                       </div>
                       <div className="px-2 py-1.5">
@@ -4536,10 +4532,10 @@ function MapPanel({
                     <button
                       onClick={() => handleDaySelect(d.day)}
                       className={cn(
-                        "flex-none flex flex-col items-center gap-1 px-3 py-2 rounded-xl border bg-white transition-colors",
+                        "flex-none flex flex-col items-center gap-1 px-3 py-2 rounded-xl border transition-colors",
                         isActive
-                          ? "border-ct-orange ring-2 ring-ct-orange/15"
-                          : "border-ct-border-light hover:border-ct-border-medium",
+                          ? "border-ct-orange bg-white ring-2 ring-ct-orange/15"
+                          : "border-transparent hover:bg-white",
                       )}
                     >
                       <div className={cn(
@@ -4845,7 +4841,10 @@ function ChatArea({
         {/* Active conversation */}
         {stage !== "idle" && (
           <div className="max-w-[620px] mx-auto space-y-5 px-3 sm:px-4 lg:px-0">
-            {msgs.map(msg => {
+            {msgs.map((msg, i) => {
+              const prev = msgs[i - 1];
+              const isFirstInTurn =
+                !prev || prev.kind === "user-init" || prev.kind === "summary" || prev.kind === "version-saved";
               if (msg.kind === "user-init") return (
                 <div key={msg.id} className="flex justify-end mt-10">
                   <div className="bg-ct-action text-white text-[14px] px-4 py-3 rounded-2xl rounded-tr-sm max-w-[80%] leading-relaxed shadow-sm">
@@ -4855,14 +4854,14 @@ function ChatArea({
               );
               if (msg.kind === "ai") return (
                 <div key={msg.id} className="flex gap-2.5">
-                  <Spark />
+                  <SparkSlot show={isFirstInTurn} />
                   <p className="flex-1 min-w-0 text-[14px] text-[#1a1a1a] leading-relaxed whitespace-pre-line pt-0.5">{msg.text}</p>
                 </div>
               );
               if (msg.kind === "summary") return <SummaryBubble key={msg.id} pairs={msg.pairs!} />;
               if (msg.kind === "planning") return (
                 <div key={msg.id} className="flex gap-2.5">
-                  <Spark />
+                  <SparkSlot show={isFirstInTurn} />
                   <div className="flex-1 min-w-0 bg-white border border-ct-border rounded-xl p-4">
                     <PlanningMsg step={planStep} />
                   </div>
@@ -4883,7 +4882,7 @@ function ChatArea({
               );
               if (msg.kind === "breakdown") return (
                 <div key={msg.id} className="flex gap-2.5">
-                  <Spark />
+                  <SparkSlot show={isFirstInTurn} />
                   <div className="flex-1 min-w-0">
                     <TripBreakdown />
                   </div>
@@ -4891,7 +4890,7 @@ function ChatArea({
               );
               if (msg.kind === "swap") return (
                 <div key={msg.id} className="flex gap-2.5">
-                  <Spark />
+                  <SparkSlot show={isFirstInTurn} />
                   <div className="flex-1 min-w-0">
                     <SwapCarousel kind={msg.swapKind!} onApply={opt => onSwapApply(msg.swapKind!, opt)} />
                   </div>
@@ -4899,7 +4898,7 @@ function ChatArea({
               );
               if (msg.kind === "cards") return (
                 <div key={msg.id} className="flex gap-2.5">
-                  <Spark />
+                  <SparkSlot show={isFirstInTurn} />
                   <div className="flex-1 min-w-0">
                     <RichCards set={msg.cardSet!} onApply={card => onCardApply(msg.cardSet!, card)} />
                   </div>
@@ -4907,7 +4906,7 @@ function ChatArea({
               );
               if (msg.kind === "flights") return (
                 <div key={msg.id} className="flex gap-2.5">
-                  <Spark />
+                  <SparkSlot show={isFirstInTurn} />
                   <div className="flex-1 min-w-0">
                     <FlightsBlock onSwap={(leg, label) => onLogChange(`${leg} flight swap`, `${leg} → ${label}`)} />
                   </div>
@@ -4915,7 +4914,7 @@ function ChatArea({
               );
               if (msg.kind === "multi-stay") return (
                 <div key={msg.id} className="flex gap-2.5">
-                  <Spark />
+                  <SparkSlot show={isFirstInTurn} />
                   <div className="flex-1 min-w-0">
                     <MultiStayBlock />
                   </div>
@@ -4923,7 +4922,7 @@ function ChatArea({
               );
               if (msg.kind === "trip-bundle") return (
                 <div key={msg.id} className="flex gap-2.5">
-                  <Spark />
+                  <SparkSlot show={isFirstInTurn} />
                   <div className="flex-1 min-w-0">
                     <TripBundleCard
                       onFlightSwap={(leg, label) => onLogChange(`${leg} flight swap`, `${leg} → ${label}`)}
@@ -4933,7 +4932,7 @@ function ChatArea({
               );
               if (msg.kind === "regen-preview" && msg.chipDiffs) return (
                 <div key={msg.id} className="flex gap-2.5">
-                  <Spark />
+                  <SparkSlot show={isFirstInTurn} />
                   <div className="flex-1 min-w-0">
                     <RegenPreview diffs={msg.chipDiffs} />
                   </div>
@@ -4941,7 +4940,7 @@ function ChatArea({
               );
               if (msg.kind === "save-trip") return (
                 <div key={msg.id} className="flex gap-2.5">
-                  <Spark />
+                  <SparkSlot show={isFirstInTurn} />
                   <div className="flex-1 min-w-0">
                     <SaveTripCard days={days} chipCtx={chipCtx} isUpdate={msg.text === "update"} initialSaved={msg.text === "version-saved"} onSave={onSaveTrip} />
                   </div>
@@ -5544,7 +5543,7 @@ export default function AIPlanner() {
           <div
             className={cn(
               // Desktop: original 380px column inline
-              "lg:relative lg:translate-x-0 lg:block",
+              "lg:relative lg:translate-x-0 lg:block lg:w-[380px]",
               // Mobile/tablet: fixed slide-in drawer from right
               "fixed top-0 right-0 z-50 h-full w-[88vw] max-w-[400px] transition-transform duration-200 ease-out shadow-2xl lg:shadow-none",
               mobileMapOpen ? "translate-x-0" : "translate-x-full lg:translate-x-0",
