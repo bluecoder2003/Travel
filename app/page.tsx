@@ -77,7 +77,7 @@ interface Version {
 interface ChipDiff { label: string; from: string; to: string }
 interface Msg {
   id: string;
-  kind: "user-init" | "ai" | "summary" | "planning-done" | "breakdown" | "swap" | "cards" | "save-trip" | "flights" | "multi-stay" | "version-saved" | "regen-preview";
+  kind: "user-init" | "ai" | "summary" | "planning" | "planning-done" | "breakdown" | "swap" | "cards" | "save-trip" | "flights" | "multi-stay" | "version-saved" | "regen-preview";
   text?: string;
   pairs?: SummaryPair[];
   swapKind?: SwapKind;
@@ -182,11 +182,51 @@ const AI_ACKS = [
 ];
 
 const STEPS = [
-  { Icon: AirplaneTilt, label: "Flights", text: "Searching 847 flights DEL → GOI · May 15", result: "IndiGo 6E-2241 · ₹4,899/person · Non-stop" },
-  { Icon: Buildings, label: "Hotels", text: "Checking 340+ hotels in North Goa · 4 nights", result: "Taj Fort Aguada · 5★ · ₹8,500/night" },
-  { Icon: Compass, label: "Activities", text: "Curating activities: beach + culture vibes", result: "14 hand-picked experiences across 5 days" },
-  { Icon: AirplaneTilt, label: "Return", text: "Searching return flights GOI → DEL · May 19", result: "IndiGo 6E-2244 · ₹5,299/person · Non-stop" },
-  { Icon: CurrencyInr, label: "Budget", text: "Assembling itinerary & running budget check", result: "₹62,896 total · ₹17,104 under budget" },
+  {
+    Icon: AirplaneTilt,
+    label: "Searching flights",
+    text: "Searching 847 flights DEL → GOI · May 15",
+    result: "IndiGo 6E-2241 · ₹4,899/person · Non-stop",
+    countTarget: 847,
+    countSuffix: "flights DEL → GOI · May 15",
+    subs: ["Filtering by date · May 15", "Sorting by price & stops", "Locking best non-stop route"],
+  },
+  {
+    Icon: Buildings,
+    label: "Checking hotels",
+    text: "Checking 340+ hotels in North Goa · 4 nights",
+    result: "Taj Fort Aguada · 5★ · ₹8,500/night",
+    countTarget: 340,
+    countSuffix: "hotels in North Goa · 4 nights",
+    subs: ["Scanning North Goa properties", "Filtering 4-night availability", "Ranking by value & rating"],
+  },
+  {
+    Icon: Compass,
+    label: "Curating activities",
+    text: "Curating activities: beach + culture vibes",
+    result: "14 hand-picked experiences across 5 days",
+    countTarget: 14,
+    countSuffix: "activities matched",
+    subs: ["Matching beach + culture tags", "Checking reviews & ratings", "Sequencing by day"],
+  },
+  {
+    Icon: AirplaneTilt,
+    label: "Searching return flights",
+    text: "Searching return flights GOI → DEL · May 19",
+    result: "IndiGo 6E-2244 · ₹5,299/person · Non-stop",
+    countTarget: 612,
+    countSuffix: "flights GOI → DEL · May 19",
+    subs: ["Filtering by date · May 19", "Sorting by price & stops", "Confirming connection times"],
+  },
+  {
+    Icon: CurrencyInr,
+    label: "Running budget check",
+    text: "Assembling itinerary & running budget check",
+    result: "₹62,896 total · ₹17,104 under budget",
+    countTarget: 62896,
+    countSuffix: "total cost calculated",
+    subs: ["Summing flight + hotel costs", "Applying loyalty discounts", "Checking against ₹80k budget"],
+  },
 ];
 
 /* ── Static data ────────────────────────────────────────── */
@@ -228,6 +268,10 @@ type InspirationItem = {
   img: string;
   tags: string[];
   href: string;
+  location: string;
+  creator: string;
+  creatorAvatar: string;
+  placeCount: number;
 };
 
 const INSPIRATION: InspirationItem[] = [
@@ -239,6 +283,10 @@ const INSPIRATION: InspirationItem[] = [
     img: "/all1.png",
     tags: ["#bali", "#indonesia", "#firsttrip"],
     href: "https://www.lonelyplanet.com/articles/best-things-to-do-in-bali",
+    location: "Bali, Indonesia",
+    creator: "Lonely Planet",
+    creatorAvatar: "/all4.png",
+    placeCount: 7,
   },
   {
     type: "VIDEO",
@@ -248,6 +296,10 @@ const INSPIRATION: InspirationItem[] = [
     img: "/all2.png",
     tags: ["#bangkok", "#foodie", "#streetfood"],
     href: "https://www.youtube.com/watch?v=3S7bRzdxULg",
+    location: "Bangkok, Thailand",
+    creator: "Mark Wiens",
+    creatorAvatar: "/all5.png",
+    placeCount: 12,
   },
   {
     type: "ITINERARY",
@@ -257,6 +309,10 @@ const INSPIRATION: InspirationItem[] = [
     img: "/all3.png",
     tags: ["#italy", "#amalfi", "#roadtrip"],
     href: "https://www.tripadvisor.com/Tourism-g187779-Amalfi_Province_of_Salerno_Campania-Vacations.html",
+    location: "Amalfi Coast, Italy",
+    creator: "TripAdvisor",
+    creatorAvatar: "/all6.png",
+    placeCount: 9,
   },
   {
     type: "BLOG",
@@ -266,6 +322,10 @@ const INSPIRATION: InspirationItem[] = [
     img: "/all4.png",
     tags: ["#europe", "#train", "#scenic"],
     href: "https://www.cntraveler.com/gallery/most-scenic-train-rides-in-europe",
+    location: "Europe",
+    creator: "Condé Nast",
+    creatorAvatar: "/all1.png",
+    placeCount: 5,
   },
   {
     type: "VIDEO",
@@ -275,6 +335,10 @@ const INSPIRATION: InspirationItem[] = [
     img: "/all5.png",
     tags: ["#patagonia", "#hiking", "#offbeat"],
     href: "https://www.youtube.com/watch?v=Dm4MkTqn_9M",
+    location: "Patagonia, Chile",
+    creator: "Lost LeBlancs",
+    creatorAvatar: "/all2.png",
+    placeCount: 6,
   },
   {
     type: "ITINERARY",
@@ -284,27 +348,31 @@ const INSPIRATION: InspirationItem[] = [
     img: "/all6.png",
     tags: ["#japan", "#ryokan", "#luxury"],
     href: "https://www.travelandleisure.com/hotels/best-ryokans-japan",
+    location: "Japan",
+    creator: "Travel + Leisure",
+    creatorAvatar: "/all3.png",
+    placeCount: 6,
   },
 ];
 
 const COMMUNITY = [
   {
     user: "Anika S.",
-    title: "A hidden beach in Nusa Penida worth visiting",
+    avatar: "/all1.png",
+    title: "A hidden beach in Nusa Penida",
     img: "/scenary.png",
-    tags: ["#bali", "#hidden"],
   },
   {
     user: "Rahul K.",
+    avatar: "/all3.png",
     title: "Best sunset spot in Uluwatu",
     img: "/community1.png",
-    tags: ["#uluwatu", "#sunset"],
   },
   {
     user: "Priya M.",
-    title: "Solo trip through Vietnam — 3 weeks, ₹60k",
+    avatar: "/all5.png",
+    title: "Solo trip through Vietnam",
     img: "/community2.png",
-    tags: ["#vietnam", "#solotravel", "#budget"],
   },
 ];
 
@@ -1605,102 +1673,164 @@ function PlanResultView({
   );
 }
 
+/* ── Rolling number ─────────────────────────────────────── */
+function RollingNumber({ to, run }: { to: number; run: boolean }) {
+  const [val, setVal] = useState(0);
+  useEffect(() => {
+    if (!run) return;
+    const duration = 700;
+    const ticks = 35;
+    const ms = duration / ticks;
+    let n = 0;
+    const t = setInterval(() => {
+      n++;
+      setVal(Math.round((n / ticks) * to));
+      if (n >= ticks) clearInterval(t);
+    }, ms);
+    return () => clearInterval(t);
+  }, [run, to]);
+  return <>{run ? val.toLocaleString("en-IN") : "0"}</>;
+}
+
 /* ── Planning animation ─────────────────────────────────── */
 function PlanningMsg({ step }: { step: number }) {
   const allDone = step >= STEPS.length;
+  const [collapsed, setCollapsed] = useState(false);
+
+  useEffect(() => {
+    if (allDone) {
+      const t = setTimeout(() => setCollapsed(true), 1400);
+      return () => clearTimeout(t);
+    }
+  }, [allDone]);
+
   return (
     <div>
       <style>{`
         @keyframes ct-fade-up {
-          from { opacity: 0; transform: translateY(5px); }
+          from { opacity: 0; transform: translateY(4px); }
           to   { opacity: 1; transform: translateY(0); }
         }
-        @keyframes ct-shimmer {
-          0%   { background-position: -400px 0; }
-          100% { background-position: 400px 0; }
+        @keyframes ct-sub-in {
+          from { opacity: 0; transform: translateX(-4px); }
+          to   { opacity: 1; transform: translateX(0); }
         }
-        .ct-shimmer-text {
-          background: linear-gradient(90deg, #ccc 25%, #888 50%, #ccc 75%);
-          background-size: 400px 100%;
-          -webkit-background-clip: text;
-          -webkit-text-fill-color: transparent;
-          background-clip: text;
-          animation: ct-shimmer 1.6s ease-in-out infinite;
-        }
-        .ct-step-in {
-          animation: ct-fade-up 0.4s ease-out both;
-        }
+        .ct-step-in  { animation: ct-fade-up 0.35s ease-out both; }
+        .ct-sub-item { animation: ct-sub-in 0.3s ease-out both; }
       `}</style>
 
-      {/* Subtle header label */}
-      <div className="flex items-center gap-2 mb-5">
-        {allDone ? (
-          <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
-            <circle cx="7" cy="7" r="6.5" stroke="#aaa" strokeWidth="1"/>
-            <path d="M4 7l2 2 4-4" stroke="#aaa" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round"/>
+      {/* Collapsed summary pill */}
+      {allDone && collapsed ? (
+        <button
+          onClick={() => setCollapsed(false)}
+          className="flex items-center gap-2 w-full text-left group"
+        >
+          <svg width="13" height="13" viewBox="0 0 13 13" fill="none" className="shrink-0 text-ct-text-muted">
+            <circle cx="6.5" cy="6.5" r="6" stroke="currentColor" strokeWidth="1"/>
+            <path d="M3.5 6.5l2 2 4-4" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round"/>
           </svg>
-        ) : (
-          <span className="flex gap-[3px] items-center">
-            {[0,1,2].map(i => (
-              <span key={i} className="w-[3px] h-[3px] rounded-full bg-[#bbb] animate-bounce" style={{ animationDelay: `${i * 160}ms` }} />
-            ))}
-          </span>
-        )}
-        <span className="text-[11px] font-medium tracking-[0.06em] uppercase text-ct-text-subtle select-none">
-          {allDone ? "Done" : "Searching"}
-        </span>
-      </div>
-
-      {/* Steps */}
-      <div className="space-y-5">
-        {STEPS.map((s, i) => {
-          const done = i < step;
-          const active = i === step;
-          const pending = i > step;
-          return (
-            <div
-              key={i}
-              className={cn("transition-opacity duration-500 ct-step-in", pending ? "opacity-25" : "opacity-100")}
-              style={{ animationDelay: `${i * 60}ms` }}
+          <span className="text-[11.5px] font-medium text-ct-text-muted flex-1">Done · {STEPS.length} steps completed</span>
+          <svg width="12" height="12" viewBox="0 0 12 12" fill="none" className="text-ct-text-disabled group-hover:text-ct-text-muted transition-colors">
+            <path d="M3 4.5l3 3 3-3" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round"/>
+          </svg>
+        </button>
+      ) : (
+        <>
+          {/* "Done" header when expanded after completion */}
+          {allDone && (
+            <button
+              onClick={() => setCollapsed(true)}
+              className="flex items-center gap-2 mb-4 w-full text-left group"
             >
-              <div className="flex items-center gap-2.5">
-                {/* Icon */}
-                <s.Icon
-                  size={13}
-                  className={cn(
-                    "shrink-0 transition-colors duration-300",
-                    done ? "text-ct-text-disabled" : active ? "text-ct-text-muted" : "text-ct-text-disabled",
-                  )}
-                />
+              <svg width="13" height="13" viewBox="0 0 13 13" fill="none" className="shrink-0 text-ct-text-muted">
+                <circle cx="6.5" cy="6.5" r="6" stroke="currentColor" strokeWidth="1"/>
+                <path d="M3.5 6.5l2 2 4-4" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round"/>
+              </svg>
+              <span className="text-[11px] font-medium tracking-[0.07em] uppercase text-ct-text-muted flex-1 select-none">Done</span>
+              <svg width="12" height="12" viewBox="0 0 12 12" fill="none" className="text-ct-text-disabled group-hover:text-ct-text-muted transition-colors">
+                <path d="M3 7.5l3-3 3 3" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round"/>
+              </svg>
+            </button>
+          )}
 
-                {/* Main text */}
-                {active ? (
-                  <p className="text-[13px] leading-snug font-medium ct-shimmer-text flex-1">{s.text}</p>
-                ) : (
-                  <p className={cn(
-                    "text-[13px] leading-snug font-medium flex-1 transition-colors duration-300",
-                    done ? "text-ct-text-placeholder" : "text-ct-text-placeholder",
-                  )}>{s.text}</p>
-                )}
-
-                {/* Done checkmark */}
-                {done && (
-                  <svg width="13" height="13" viewBox="0 0 13 13" fill="none" className="shrink-0">
-                    <path d="M2.5 6.5l3 3 5-5.5" stroke="#bbb" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round"/>
-                  </svg>
-                )}
-              </div>
-
-              {/* Result line */}
-              {done && (
-                <p className="mt-1 ml-[21px] text-[12px] text-ct-text-secondary font-medium ct-step-in" style={{ animationDelay: "0ms" }}>
-                  {s.result}
-                </p>
-              )}
+          {/* In-progress dots header */}
+          {!allDone && (
+            <div className="flex items-center gap-2 mb-4">
+              <span className="flex gap-[3px] items-center">
+                {[0,1,2].map(i => (
+                  <span key={i} className="w-[3px] h-[3px] rounded-full bg-[#bbb] animate-bounce" style={{ animationDelay: `${i * 160}ms` }} />
+                ))}
+              </span>
+              <span className="text-[11px] font-medium tracking-[0.07em] uppercase text-ct-text-subtle select-none">Working on it</span>
             </div>
-          );
-        })}
-      </div>
+          )}
+
+          {/* Steps */}
+          <div className="space-y-3">
+            {STEPS.map((s, i) => {
+              const done = i < step;
+              const active = i === step;
+              const pending = i > step;
+              return (
+                <div
+                  key={i}
+                  className={cn("ct-step-in transition-opacity duration-400", pending ? "opacity-20" : "opacity-100")}
+                  style={{ animationDelay: `${i * 50}ms` }}
+                >
+                  {/* Header row */}
+                  <div className="flex items-center gap-2">
+                    <s.Icon
+                      size={12}
+                      className={cn(
+                        "shrink-0 transition-colors duration-300",
+                        done ? "text-ct-text-disabled" : active ? "text-ct-text-secondary" : "text-ct-text-disabled",
+                      )}
+                    />
+                    <p className={cn(
+                      "text-[12px] leading-snug font-medium flex-1 transition-colors duration-300",
+                      done ? "text-ct-text-placeholder" : active ? "text-ct-text-secondary" : "text-ct-text-disabled",
+                    )}>
+                      {active ? (
+                        <>{s.label} · <RollingNumber to={s.countTarget} run={active} /></>
+                      ) : (
+                        s.label
+                      )}
+                    </p>
+                    {done && (
+                      <svg width="11" height="11" viewBox="0 0 13 13" fill="none" className="shrink-0">
+                        <path d="M2.5 6.5l3 3 5-5.5" stroke="#bbb" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round"/>
+                      </svg>
+                    )}
+                  </div>
+
+                  {/* Sub-activities — visible while active, collapse when done */}
+                  <div className={cn(
+                    "ml-5 overflow-hidden transition-all duration-500 ease-in-out",
+                    active ? "max-h-24 opacity-100 mt-1" : "max-h-0 opacity-0 mt-0",
+                  )}>
+                    {s.subs.map((sub, j) => (
+                      <p
+                        key={j}
+                        className="ct-sub-item text-[10.5px] text-ct-text-muted leading-relaxed"
+                        style={{ animationDelay: `${j * 120}ms` }}
+                      >
+                        {sub}
+                      </p>
+                    ))}
+                  </div>
+
+                  {/* Result — visible when done */}
+                  {done && (
+                    <p className="mt-0.5 ml-5 text-[11.5px] text-ct-text-secondary font-medium ct-step-in">
+                      {s.result}
+                    </p>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </>
+      )}
     </div>
   );
 }
@@ -3049,20 +3179,20 @@ function RightPanel() {
       {/* Inspiration for you */}
       <div className="px-4 pt-3 pb-1">
         <div className="flex items-center justify-between mb-2.5">
-          <p className="text-[14px] font-medium text-[#1a1a1a]">Inspiration for you</p>
-          <button className="text-[12px] font-semibold text-ct-text-secondary border border-ct-border px-3 py-1 rounded-lg hover:bg-ct-surface-subtle transition-colors shrink-0 ml-2">
+          <p className="text-[13px] font-medium text-[#1a1a1a]">Inspiration for you</p>
+          <button className="text-[11px] font-semibold text-ct-text-secondary border border-ct-border px-2.5 py-0.5 rounded-lg hover:bg-ct-surface-subtle transition-colors shrink-0 ml-2">
             Explore
           </button>
         </div>
 
         {/* Tabs */}
-        <div className="flex gap-1.5 mb-3 flex-wrap">
+        {/* <div className="flex gap-1.5 mb-3 flex-wrap">
           {(["All", "Blogs", "Videos", "Itineraries"] as const).map(tab => (
             <button
               key={tab}
               onClick={() => setInspiTab(tab)}
               className={cn(
-                "text-[11.5px] font-semibold px-3 py-1 rounded-full border transition-colors",
+                "text-[10.5px] font-semibold px-2.5 py-0.5 rounded-full border transition-colors",
                 inspiTab === tab
                   ? "bg-[#1a1a1a] text-white border-[#1a1a1a]"
                   : "text-ct-text-secondary border-ct-border hover:bg-ct-surface-subtle",
@@ -3071,32 +3201,40 @@ function RightPanel() {
               {tab}
             </button>
           ))}
-        </div>
+        </div> */}
 
-        <div className="space-y-3">
+        <div className="grid grid-cols-2 gap-2.5">
           {filtered.map((item, i) => (
             <a
               key={i}
               href={item.href}
               target="_blank"
               rel="noopener noreferrer"
-              className="flex gap-3 group cursor-pointer"
+              className="group cursor-pointer"
             >
-              <div className="relative w-[100px] shrink-0 rounded-xl overflow-hidden aspect-[4/3]">
-                <Image src={item.img} alt={item.title} fill className="object-cover group-hover:scale-105 transition-transform duration-300" sizes="100px" />
-                {/* <span className={cn("absolute top-1.5 left-1.5 text-[9px] font-extrabold px-1.5 py-0.5 rounded-full uppercase tracking-wide", TYPE_STYLES[item.type])}>
-                  {item.type}
-                </span> */}
+              {/* image */}
+              <div className="relative w-full aspect-[3/4] rounded-xl overflow-hidden">
+                <Image src={item.img} alt={item.title} fill className="object-cover group-hover:scale-105 transition-transform duration-300" sizes="50vw" />
+                <div className="absolute inset-0 bg-gradient-to-t from-black/30 via-transparent to-transparent" />
+                <span className="absolute top-2 left-2 bg-black/40 backdrop-blur-sm text-white text-[9px] font-semibold px-1.5 py-0.5 rounded-full">
+                  {item.placeCount} places
+                </span>
               </div>
-              <div className="flex-1 min-w-0 py-0.5">
-                <p className="text-[12px] font-semibold text-[#1a1a1a] leading-tight line-clamp-2 group-hover:text-ct-text-ui transition-colors">{item.title}</p>
-                <p className="mt-0.5 text-[10.5px] text-ct-text-muted leading-snug line-clamp-2">{item.sub}</p>
-                <div className="flex flex-wrap gap-1 mt-1.5">
-                  {item.tags.map(tag => (
-                    <span key={tag} className="text-[10px] text-ct-text-muted hover:text-ct-text-secondary transition-colors">{tag}</span>
-                  ))}
+              {/* meta */}
+              <div className="mt-1.5 px-0.5">
+                <p className="text-[11px] font-semibold text-[#1a1a1a] leading-tight truncate">{item.title}</p>
+                <div className="flex items-center gap-0.5 mt-0.5">
+                  <svg width="9" height="9" viewBox="0 0 10 12" fill="none" className="shrink-0 text-ct-text-muted">
+                    <path d="M5 0C3.07 0 1.5 1.57 1.5 3.5c0 2.63 3.5 7 3.5 7s3.5-4.37 3.5-7C8.5 1.57 6.93 0 5 0zm0 4.75a1.25 1.25 0 1 1 0-2.5 1.25 1.25 0 0 1 0 2.5z" fill="currentColor"/>
+                  </svg>
+                  <p className="text-[9.5px] text-ct-text-muted truncate">{item.location}</p>
                 </div>
-                <p className="mt-1 text-[10px] text-ct-text-placeholder">{item.source}</p>
+                <div className="flex items-center gap-1 mt-1">
+                  <div className="relative w-4 h-4 rounded-full overflow-hidden shrink-0 border border-white ring-1 ring-ct-border">
+                    <Image src={item.creatorAvatar} alt={item.creator} fill className="object-cover" sizes="16px" />
+                  </div>
+                  <p className="text-[9.5px] text-ct-text-muted truncate">{item.creator}</p>
+                </div>
               </div>
             </a>
           ))}
@@ -3113,20 +3251,18 @@ function RightPanel() {
             View all
           </button>
         </div>
-        <div className="space-y-2.5">
+        <div className="grid grid-cols-2 gap-2">
           {COMMUNITY.map((post, i) => (
-            <div key={i} className="flex gap-3 cursor-pointer group">
-              <div className="relative w-14 h-11 rounded-lg overflow-hidden shrink-0">
-                <Image src={post.img} alt={post.title} fill className="object-cover group-hover:scale-105 transition-transform duration-300" sizes="56px" />
+            <div key={i} className="cursor-pointer group">
+              <div className="relative rounded-xl overflow-hidden aspect-[4/3]">
+                <Image src={post.img} alt={post.title} fill className="object-cover group-hover:scale-105 transition-transform duration-300" sizes="160px" />
               </div>
-              <div className="flex-1 min-w-0">
-                <p className="text-[12px] font-semibold text-[#1a1a1a] leading-tight line-clamp-2 group-hover:text-ct-text-ui transition-colors">{post.title}</p>
-                <div className="flex flex-wrap gap-1 mt-1">
-                  {post.tags.map(tag => (
-                    <span key={tag} className="text-[10px] text-ct-text-subtle">{tag}</span>
-                  ))}
+              <p className="mt-1.5 text-[11px] text-[#1a1a1a] font-medium leading-snug line-clamp-1">{post.title}</p>
+              <div className="flex items-center gap-1 mt-0.5">
+                <div className="relative w-3.5 h-3.5 rounded-full overflow-hidden shrink-0 ring-1 ring-ct-border">
+                  <Image src={post.avatar} alt={post.user} fill className="object-cover" sizes="14px" />
                 </div>
-                <p className="text-[10px] text-ct-text-placeholder mt-0.5">by {post.user}</p>
+                <p className="text-[9.5px] text-ct-text-muted truncate">{post.user}</p>
               </div>
             </div>
           ))}
@@ -4583,14 +4719,16 @@ function ChatArea({
                 </div>
               );
               if (msg.kind === "summary") return <SummaryBubble key={msg.id} pairs={msg.pairs!} />;
+              if (msg.kind === "planning") return (
+                <div key={msg.id} className="flex gap-2.5">
+                  <Spark />
+                  <div className="flex-1 min-w-0 bg-white border border-ct-border rounded-xl p-4">
+                    <PlanningMsg step={planStep} />
+                  </div>
+                </div>
+              );
               if (msg.kind === "planning-done") return (
                 <div key={msg.id} className="space-y-4">
-                  <div className="flex gap-2.5">
-                    <Spark />
-                    <div className="flex-1 min-w-0">
-                      <PlanningMsg step={STEPS.length} />
-                    </div>
-                  </div>
                   <PlanResultView
                     onSelectDay={onSelectDay}
                     selectedDay={selectedDay}
@@ -4662,14 +4800,6 @@ function ChatArea({
               return null;
             })}
 
-            {stage === "planning" && planStep >= 0 && planStep < STEPS.length && (
-              <div className="flex gap-2.5">
-                <Spark />
-                <div className="flex-1 min-w-0 bg-white border border-ct-border rounded-xl p-4 shadow-sm">
-                  <PlanningMsg step={planStep} />
-                </div>
-              </div>
-            )}
 
             {isTyping && (
               <div className="flex gap-2.5">
@@ -4784,6 +4914,7 @@ export default function AIPlanner() {
   function startPlanning(_allPairs: SummaryPair[]) {
     setStage("planning");
     showAI("Perfect. Searching for the best flights, hotels and activities now…", 900);
+    setTimeout(() => addMsg({ kind: "planning" }), 950);
     let step = 0;
     setPlanStep(0);
     setTimeout(() => {
@@ -5144,6 +5275,7 @@ export default function AIPlanner() {
 
     showAI(`Got it — regenerating ${dest} for ${dateStr} (${travellersLabel}). Reshuffling flights, stays and activities…`, 700);
     setStage("planning");
+    setTimeout(() => addMsg({ kind: "planning" }), 750);
     let step = 0;
     setPlanStep(0);
     setTimeout(() => {
