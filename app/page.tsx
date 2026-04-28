@@ -60,7 +60,7 @@ type SwapKind = "stay" | "activity";
 type CardSet = "savings" | "cafes" | "adventure" | "pace";
 interface Msg {
   id: string;
-  kind: "user-init" | "ai" | "summary" | "planning-done" | "breakdown" | "swap" | "cards";
+  kind: "user-init" | "ai" | "summary" | "planning-done" | "breakdown" | "swap" | "cards" | "save-trip";
   text?: string;
   pairs?: SummaryPair[];
   swapKind?: SwapKind;
@@ -1462,7 +1462,7 @@ function PlanResultView({
             key={d.day}
             onClick={() => { onSelectDay(d.day); setCustomizingDayId(null); }}
             className={cn(
-              "relative flex-none w-[190px] rounded-2xl overflow-hidden border-2 transition-all text-left group shrink-0",
+              "relative flex-none w-[190px] rounded-2xl overflow-hidden border transition-all text-left group shrink-0",
               selectedDay === d.day ? "border-[#1a1a1a] shadow-sm" : "border-transparent hover:border-ct-border-medium",
             )}
           >
@@ -1851,6 +1851,318 @@ function TripBreakdown() {
           </div>
         );
       })}
+    </div>
+  );
+}
+
+/* ── PDF generator ──────────────────────────────────────── */
+function downloadTripPDF(days: DayPlan[], chipCtx: ChipCtx | null) {
+  const dest = chipCtx?.destination || "Bali, Indonesia";
+  const dateStr = chipCtx?.dates.start
+    ? `${fmtChipDate(chipCtx.dates.start)}${chipCtx.dates.end ? " – " + fmtChipDate(chipCtx.dates.end) : ""}`
+    : "May 15 – 19, 2025";
+  const travellers = chipCtx ? chipCtx.adults + chipCtx.children : 2;
+
+  const totalBudget = "₹63,094";
+  const budgetNote = "₹16,906 under budget";
+
+  const activityTypeLabel: Record<string, string> = {
+    hotel: "Stay", beach: "Beach", food: "Dining", nature: "Nature",
+    shopping: "Shopping", culture: "Culture", dance: "Performance",
+    trek: "Trek / Viewpoint", flight: "Flight", sunset: "Sunset",
+    spa: "Spa", walk: "Walk",
+  };
+
+  const breakdownRows = [
+    { title: "Flights", sub: "Delhi ⇌ Bali · Return · Non-stop", price: "₹20,396", details: [{ name: "IndiGo 6E-2241 — Outbound", note: "DEL → DPS · 06:25 · 5h 45m", price: "₹9,798" }, { name: "IndiGo 6E-2244 — Return", note: "DPS → DEL · 19:45 · 5h 45m", price: "₹10,598" }] },
+    { title: "Accommodation", sub: "Taj Fort Aguada Resort · 4 nights", price: "₹34,000", details: [{ name: "Taj Fort Aguada Resort & Spa", note: "5★ · Seminyak · Breakfast included", price: "₹8,500/night" }] },
+    { title: "Experiences", sub: "Handpicked activities", price: "₹8,698", details: [{ name: "Tegallalang trek", note: "Day 2 · Guided · 2 pax", price: "₹2,400" }, { name: "Mt. Batur sunrise hike", note: "Day 3 · 04:00 · 2 pax", price: "₹3,200" }, { name: "Uluwatu Kecak dance", note: "Day 4 · 17:30", price: "₹1,500" }, { name: "Balinese spa", note: "Day 5 · 90 min", price: "₹1,598" }] },
+  ];
+
+  const htmlContent = `<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<title>${dest} Trip Plan</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    font-size: 11pt;
+    color: #1a1a1a;
+    background: white;
+    line-height: 1.5;
+  }
+  @page { size: A4; margin: 14mm 16mm; }
+  @media print {
+    .no-print { display: none !important; }
+    body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  }
+  .page-wrap { max-width: 720px; margin: 0 auto; padding: 24px 0; }
+
+  /* Header */
+  .header { display: flex; align-items: flex-start; justify-content: space-between; padding-bottom: 20px; border-bottom: 2px solid #1a1a1a; margin-bottom: 28px; }
+  .header-left .brand { font-size: 9pt; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; color: #888; margin-bottom: 6px; }
+  .header-left .dest { font-size: 26pt; font-weight: 800; color: #1a1a1a; line-height: 1.1; }
+  .header-left .meta { font-size: 10pt; color: #555; margin-top: 6px; display: flex; gap: 16px; }
+  .header-right { text-align: right; }
+  .header-right .total-label { font-size: 9pt; color: #888; font-weight: 600; text-transform: uppercase; letter-spacing: 0.08em; }
+  .header-right .total { font-size: 22pt; font-weight: 800; color: #1a1a1a; line-height: 1.1; margin-top: 2px; }
+  .header-right .saving { font-size: 9pt; font-weight: 600; color: #16a34a; margin-top: 3px; }
+
+  /* Section title */
+  .section-title { font-size: 8pt; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; color: #888; margin-bottom: 12px; display: flex; align-items: center; gap: 8px; }
+  .section-title::after { content: ""; flex: 1; height: 1px; background: #e5e7eb; }
+
+  /* Day cards */
+  .day-section { margin-bottom: 20px; page-break-inside: avoid; }
+  .day-header { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; }
+  .day-badge { width: 26px; height: 26px; border-radius: 50%; background: #1a1a1a; color: white; font-size: 11pt; font-weight: 800; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+  .day-title { font-size: 14pt; font-weight: 800; color: #1a1a1a; }
+  .day-tag { font-size: 9pt; color: #888; margin-left: 4px; font-weight: 500; }
+  .activities-table { width: 100%; border-collapse: collapse; }
+  .activities-table tr { border-bottom: 1px solid #f0f0f0; }
+  .activities-table tr:last-child { border-bottom: none; }
+  .activities-table td { padding: 7px 10px 7px 0; vertical-align: top; }
+  .act-time { font-size: 9.5pt; color: #888; font-weight: 600; width: 52px; padding-right: 10px; padding-top: 2px; white-space: nowrap; }
+  .act-dot { width: 8px; padding-top: 6px; }
+  .act-dot-inner { width: 6px; height: 6px; border-radius: 50%; background: #FF4F17; }
+  .act-name { font-size: 11pt; font-weight: 600; color: #1a1a1a; }
+  .act-type { display: inline-block; font-size: 8pt; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; color: #888; background: #f5f5f5; border-radius: 4px; padding: 1px 6px; margin-left: 6px; vertical-align: middle; }
+  .act-blurb { font-size: 10pt; color: #666; margin-top: 2px; line-height: 1.4; }
+
+  /* Highlights row */
+  .highlights { display: flex; gap: 6px; flex-wrap: wrap; margin: 6px 0 14px 36px; }
+  .highlight-pill { font-size: 8.5pt; color: #555; background: #f5f5f5; border-radius: 6px; padding: 3px 9px; }
+
+  /* Separator */
+  .section-gap { margin-bottom: 28px; }
+
+  /* Breakdown */
+  .breakdown-table { width: 100%; border-collapse: collapse; }
+  .breakdown-row { border-bottom: 1px solid #f0f0f0; }
+  .breakdown-row td { padding: 9px 0; vertical-align: top; }
+  .breakdown-cat { font-size: 11pt; font-weight: 700; color: #1a1a1a; }
+  .breakdown-sub { font-size: 9.5pt; color: #888; margin-top: 1px; }
+  .breakdown-price { font-size: 11pt; font-weight: 700; color: #1a1a1a; text-align: right; white-space: nowrap; padding-left: 20px; }
+  .breakdown-detail { padding: 6px 0 8px 0; background: #fafafa; }
+  .breakdown-detail-row { display: flex; justify-content: space-between; font-size: 9.5pt; color: #555; padding: 2px 0; gap: 12px; }
+  .breakdown-detail-name { font-weight: 500; }
+  .breakdown-detail-note { color: #888; font-size: 9pt; margin-top: 1px; }
+  .breakdown-detail-price { color: #1a1a1a; font-weight: 600; white-space: nowrap; }
+
+  /* Total row */
+  .total-row td { padding: 12px 0 6px; border-top: 2px solid #1a1a1a; }
+  .total-row .breakdown-cat { font-size: 13pt; }
+  .total-row .breakdown-price { font-size: 13pt; }
+
+  /* Footer */
+  .footer { margin-top: 32px; padding-top: 16px; border-top: 1px solid #e5e7eb; display: flex; justify-content: space-between; align-items: center; }
+  .footer-left { font-size: 9pt; color: #888; }
+  .footer-right { font-size: 9pt; color: #888; }
+  .ct-orange { color: #FF4F17; }
+
+  /* Print button */
+  .print-btn { display: inline-flex; align-items: center; gap: 8px; background: #1a1a1a; color: white; font-family: -apple-system, sans-serif; font-size: 13px; font-weight: 600; padding: 10px 20px; border: none; border-radius: 9999px; cursor: pointer; margin-bottom: 24px; }
+  .print-btn:hover { background: #333; }
+</style>
+</head>
+<body>
+<div class="page-wrap">
+
+  <div class="no-print" style="margin-bottom: 20px; display: flex; align-items: center; gap: 12px;">
+    <button class="print-btn" onclick="window.print()">
+      <svg width="16" height="16" viewBox="0 0 256 256" fill="currentColor"><path d="M224,152v56a8,8,0,0,1-8,8H40a8,8,0,0,1-8-8V152a16,16,0,0,1,16-16H56V48A8,8,0,0,1,64,40H192a8,8,0,0,1,8,8v88h8A16,16,0,0,1,224,152ZM72,136H184V56H72Zm104,16H80a8,8,0,0,0,0,16h96a8,8,0,0,0,0-16Z"/></svg>
+      Save as PDF
+    </button>
+    <span style="font-size: 12px; color: #888;">Use your browser's Print dialog &rarr; Save as PDF</span>
+  </div>
+
+  <!-- Header -->
+  <div class="header">
+    <div class="header-left">
+      <div class="brand">Cleartrip AI &middot; Trip Plan</div>
+      <div class="dest">${dest}</div>
+      <div class="meta">
+        <span>${dateStr}</span>
+        <span>${travellers} traveller${travellers !== 1 ? "s" : ""}</span>
+        <span>${chipCtx?.cabinClass || "Economy"}</span>
+      </div>
+    </div>
+    <div class="header-right">
+      <div class="total-label">Trip Total</div>
+      <div class="total">${totalBudget}</div>
+      <div class="saving">${budgetNote}</div>
+    </div>
+  </div>
+
+  <!-- Day plans -->
+  <div class="section-title">Day-by-Day Itinerary</div>
+  ${days.map(d => `
+    <div class="day-section">
+      <div class="day-header">
+        <div class="day-badge">${d.day}</div>
+        <div>
+          <span class="day-title">${d.location}</span>
+          <span class="day-tag">&mdash; ${d.tag}</span>
+        </div>
+      </div>
+      <table class="activities-table">
+        <tbody>
+          ${d.activities.map(a => `
+            <tr>
+              <td class="act-time">${a.time}</td>
+              <td class="act-dot"><div class="act-dot-inner"></div></td>
+              <td>
+                <div class="act-name">${a.name}<span class="act-type">${activityTypeLabel[a.type] || a.type}</span></div>
+                ${a.blurb ? `<div class="act-blurb">${a.blurb}</div>` : ""}
+              </td>
+            </tr>
+          `).join("")}
+        </tbody>
+      </table>
+      <div class="highlights">
+        ${d.detail.highlights.map(h => `<span class="highlight-pill">${h}</span>`).join("")}
+      </div>
+    </div>
+  `).join("")}
+
+  <div class="section-gap"></div>
+
+  <!-- Cost Breakdown -->
+  <div class="section-title">Cost Breakdown</div>
+  <table class="breakdown-table">
+    <tbody>
+      ${breakdownRows.map(row => `
+        <tr class="breakdown-row">
+          <td>
+            <div class="breakdown-cat">${row.title}</div>
+            <div class="breakdown-sub">${row.sub}</div>
+            ${row.details.map(d => `
+              <div style="margin-top: 6px; padding-left: 0;">
+                <div class="breakdown-detail-row">
+                  <div>
+                    <div class="breakdown-detail-name">${d.name}</div>
+                    <div class="breakdown-detail-note">${d.note}</div>
+                  </div>
+                  <div class="breakdown-detail-price">${d.price}</div>
+                </div>
+              </div>
+            `).join("")}
+          </td>
+          <td class="breakdown-price">${row.price}</td>
+        </tr>
+      `).join("")}
+      <tr class="total-row">
+        <td><div class="breakdown-cat">Total</div></td>
+        <td class="breakdown-price">${totalBudget}</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <!-- Footer -->
+  <div class="footer">
+    <div class="footer-left">Generated by <strong>Cleartrip AI</strong> &middot; ${new Date().toLocaleDateString("en-IN", { day: "numeric", month: "long", year: "numeric" })}</div>
+    <div class="footer-right"><span class="ct-orange">cleartrip.com</span></div>
+  </div>
+
+</div>
+</body>
+</html>`;
+
+  const win = window.open("", "_blank", "width=820,height=900,scrollbars=yes");
+  if (!win) return;
+  win.document.write(htmlContent);
+  win.document.close();
+}
+
+/* ── Save-trip card ─────────────────────────────────────── */
+function SaveTripCard({
+  days, chipCtx, isUpdate = false,
+}: {
+  days: DayPlan[];
+  chipCtx: ChipCtx | null;
+  isUpdate?: boolean;
+}) {
+  const [saved, setSaved] = useState(false);
+  const dest = chipCtx?.destination || "Bali, Indonesia";
+  const dateStr = chipCtx?.dates.start
+    ? `${fmtChipDate(chipCtx.dates.start)}${chipCtx.dates.end ? " – " + fmtChipDate(chipCtx.dates.end) : ""}`
+    : "May 15 – 19";
+  const totalStops = days.reduce((s, d) => s + d.activities.length, 0);
+
+  return (
+    <div className="border border-ct-border bg-white rounded-2xl overflow-hidden shadow-sm">
+      {/* Header strip */}
+      <div className="flex items-center justify-between px-4 py-3 bg-ct-surface-raised border-b border-ct-border-light">
+        <div className="flex items-center gap-2.5">
+          <div className={cn(
+            "w-7 h-7 rounded-xl flex items-center justify-center shrink-0",
+            saved ? "bg-[#16a34a]" : "bg-ct-orange",
+          )}>
+            {saved ? (
+              <svg width="13" height="13" viewBox="0 0 256 256" fill="white"><path d="M173.66,98.34a8,8,0,0,1,0,11.32l-56,56a8,8,0,0,1-11.32,0l-24-24a8,8,0,0,1,11.32-11.32L112,148.69l50.34-50.35A8,8,0,0,1,173.66,98.34ZM232,128A104,104,0,1,1,128,24,104.11,104.11,0,0,1,232,128Zm-16,0a88,88,0,1,0-88,88A88.1,88.1,0,0,0,216,128Z"/></svg>
+            ) : (
+              <svg width="13" height="13" viewBox="0 0 256 256" fill="white"><path d="M208,32H48A16,16,0,0,0,32,48V208a16,16,0,0,0,16,16H208a16,16,0,0,0,16-16V48A16,16,0,0,0,208,32ZM80,64h96a8,8,0,0,1,0,16H80a8,8,0,0,1,0-16Zm48,128-48-40h20V120h56v32h20Z"/></svg>
+            )}
+          </div>
+          <div>
+            <p className="text-[12px] font-bold text-ct-text">
+              {isUpdate ? "Plan updated" : saved ? "Trip saved" : "Your plan is ready"}
+            </p>
+            <p className="text-[10px] text-ct-text-muted mt-0.5">{dest} · {dateStr}</p>
+          </div>
+        </div>
+        {saved && (
+          <span className="text-[10px] font-semibold text-[#16a34a] bg-[#f0fdf4] border border-[#bbf7d0] rounded-full px-2.5 py-0.5">Saved</span>
+        )}
+      </div>
+
+      {/* Stats row */}
+      <div className="grid grid-cols-3 divide-x divide-ct-border-light px-0 py-0">
+        {[
+          { label: "Days", value: String(days.length) },
+          { label: "Stops", value: String(totalStops) },
+          { label: "Budget", value: "₹63,094" },
+        ].map(s => (
+          <div key={s.label} className="flex flex-col items-center py-3 gap-0.5">
+            <span className="text-[15px] font-bold text-ct-text">{s.value}</span>
+            <span className="text-[9.5px] font-semibold uppercase tracking-wider text-ct-text-subtle">{s.label}</span>
+          </div>
+        ))}
+      </div>
+
+      {/* Actions */}
+      <div className="flex gap-2 px-4 py-3 border-t border-ct-border-light">
+        <button
+          onClick={() => setSaved(true)}
+          className={cn(
+            "flex-1 flex items-center justify-center gap-2 text-[12px] font-semibold rounded-xl py-2.5 border transition-all",
+            saved
+              ? "bg-[#f0fdf4] border-[#bbf7d0] text-[#16a34a]"
+              : "bg-ct-text text-white border-ct-text hover:bg-ct-action-hover",
+          )}
+        >
+          {saved ? (
+            <>
+              <svg width="13" height="13" viewBox="0 0 256 256" fill="currentColor"><path d="M173.66,98.34a8,8,0,0,1,0,11.32l-56,56a8,8,0,0,1-11.32,0l-24-24a8,8,0,0,1,11.32-11.32L112,148.69l50.34-50.35A8,8,0,0,1,173.66,98.34ZM232,128A104,104,0,1,1,128,24,104.11,104.11,0,0,1,232,128Zm-16,0a88,88,0,1,0-88,88A88.1,88.1,0,0,0,216,128Z"/></svg>
+              Trip saved
+            </>
+          ) : (
+            <>
+              <svg width="13" height="13" viewBox="0 0 256 256" fill="currentColor"><path d="M208,32H48A16,16,0,0,0,32,48V208a16,16,0,0,0,16,16H208a16,16,0,0,0,16-16V48A16,16,0,0,0,208,32ZM80,64h96a8,8,0,0,1,0,16H80a8,8,0,0,1,0-16Zm48,128-48-40h20V120h56v32h20Z"/></svg>
+              Save trip
+            </>
+          )}
+        </button>
+        <button
+          onClick={() => downloadTripPDF(days, chipCtx)}
+          className="flex-1 flex items-center justify-center gap-2 text-[12px] font-semibold rounded-xl py-2.5 border border-ct-border bg-white text-ct-text-secondary hover:border-ct-border-medium hover:bg-ct-surface-subtle transition-all"
+        >
+          <svg width="13" height="13" viewBox="0 0 256 256" fill="currentColor"><path d="M224,152v56a8,8,0,0,1-8,8H40a8,8,0,0,1-8-8V152a16,16,0,0,1,16-16H56V48A8,8,0,0,1,64,40H192a8,8,0,0,1,8,8v88h8A16,16,0,0,1,224,152ZM72,136H184V56H72Zm104,16H80a8,8,0,0,0,0,16h96a8,8,0,0,0,0-16Z"/></svg>
+          Download breakdown
+        </button>
+      </div>
     </div>
   );
 }
@@ -3087,8 +3399,8 @@ function getStopKindMeta(type: ActivityType): StopKindMeta {
     case "walk":     return { label: "Walk",              tagline: "Easy stroll. Mornings are quieter and cooler.",             Icon: Footprints };
     case "hotel":    return { label: "Stay",              tagline: "Show your booking at reception. Late check-in is fine.",    Icon: Bed };
     case "flight":   return { label: "Travel",            tagline: "Reach the gate 90 min before departure.",                   Icon: AirplaneTilt };
+    default:         return { label: "Stop", tagline: "Tap for the full guide.", Icon: Compass };
   }
-  return { label: "Stop", tagline: "Tap for the full guide.", Icon: Compass };
 }
 
 function StopDetailPanel({
@@ -3682,6 +3994,14 @@ function ChatArea({
                   </div>
                 </div>
               );
+              if (msg.kind === "save-trip") return (
+                <div key={msg.id} className="flex gap-2.5">
+                  <Spark />
+                  <div className="flex-1 min-w-0">
+                    <SaveTripCard days={days} chipCtx={chipCtx} isUpdate={msg.text === "update"} />
+                  </div>
+                </div>
+              );
               return null;
             })}
 
@@ -3809,6 +4129,7 @@ export default function AIPlanner() {
               kind: "ai",
               text: "Tap any day on the map to zoom in. Ask me to swap the stay, customise activities, or rebalance the budget anytime.",
             }), 2200);
+            setTimeout(() => addMsg({ kind: "save-trip" }), 3000);
           }, 700);
         }
       }, 850);
@@ -3907,6 +4228,7 @@ export default function AIPlanner() {
       }));
       triggerHighlight(selectedDay, newKey);
     }
+    setTimeout(() => addMsg({ kind: "save-trip", text: "update" }), 1600);
   }
 
   function handleResultsMessage(txt: string) {
@@ -3964,8 +4286,9 @@ export default function AIPlanner() {
 
   function applyCardToTrip(set: CardSet, card: RichCard) {
     if (set === "savings") {
-      showAI(`✓ Applied — ${card.title}. ${card.badge ?? "Saved"}.`, 500);
+      showAI(`Applied — ${card.title}. ${card.badge ?? "Saved"}.`, 500);
       triggerHighlight(selectedDay);
+      setTimeout(() => addMsg({ kind: "save-trip", text: "update" }), 1800);
       return;
     }
     if (set === "adventure" || set === "cafes") {
@@ -3984,13 +4307,15 @@ export default function AIPlanner() {
         });
         return { ...d, activities: newActs };
       }));
-      showAI(`✓ Added "${card.title}" to Day ${selectedDay} — see the highlight on the map.`, 500);
+      showAI(`Added "${card.title}" to Day ${selectedDay} — see the highlight on the map.`, 500);
       triggerHighlight(selectedDay, newKey);
+      setTimeout(() => addMsg({ kind: "save-trip", text: "update" }), 1800);
       return;
     }
     if (set === "pace") {
-      showAI(`✓ Applied — ${card.title}. Days re-timed.`, 500);
+      showAI(`Applied — ${card.title}. Days re-timed.`, 500);
       triggerHighlight(selectedDay);
+      setTimeout(() => addMsg({ kind: "save-trip", text: "update" }), 1800);
       return;
     }
   }
