@@ -1803,7 +1803,7 @@ function MapPanel({ selectedDay, onSelectDay }: { selectedDay: number; onSelectD
   return (
     <div className="w-[380px] shrink-0 border-l border-ct-border flex flex-col bg-white">
       {/* Map header */}
-      <div className="flex items-center justify-between px-4 py-3 border-b border-ct-border-light shrink-0">
+      <div className="flex items-center justify-between px-4 py-4 border-b border-ct-border-light shrink-0">
         <div className="flex items-center gap-2">
           <div className="w-6 h-6 rounded-lg bg-ct-action-active flex items-center justify-center">
             <MapPin size={13} color="white" weight="fill" />
@@ -1994,10 +1994,7 @@ function ChatArea({
           <HeaderTripChips ctx={chipCtx} onCtxChange={onChipChange} onNewChat={onNewChat} />
         )}
         <div className="flex items-center gap-2 ml-auto shrink-0">
-          <button className="flex items-center gap-1.5 text-[12px] font-semibold text-ct-text-secondary border border-ct-border px-3.5 py-1.5 rounded-full hover:bg-ct-surface-subtle transition-colors">
-            <Plus size={12} weight="bold" />
-            Create a Trip
-          </button>
+          
           <button className="text-[12px] font-semibold text-ct-text-secondary border border-ct-border px-3.5 py-1.5 rounded-full hover:bg-ct-surface-subtle transition-colors">
             Invite
           </button>

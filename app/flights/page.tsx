@@ -681,22 +681,7 @@ export default function Home() {
                 <FlightSearch />
 
                 {/* AI Planner entry-point banner */}
-                <Link
-                  href="/"
-                  className="mt-4 flex items-center gap-4 bg-[#0a1f6e] rounded-[12px] px-5 py-4 hover:shadow-lg transition-shadow group"
-                >
-                  <div className="w-10 h-10 rounded-xl bg-white/20 flex items-center justify-center shrink-0 text-[22px]">✨</div>
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 mb-0.5">
-                      <p className="text-[14px] font-bold text-white">Try AI Trip Planner</p>
-                      <span className="text-[9px] font-extrabold bg-[#FF4F17] text-white px-1.5 py-0.5 rounded-full uppercase tracking-wide">NEW</span>
-                    </div>
-                    <p className="text-[12px] text-white/70">Describe your trip in plain English — AI plans flights, hotel & activities in one go</p>
-                  </div>
-                  <div className="text-white/60 group-hover:text-white group-hover:translate-x-0.5 transition-all shrink-0">
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="9 18 15 12 9 6" /></svg>
-                  </div>
-                </Link>
+                
               </div>
               <SidePanel />
             </div>
