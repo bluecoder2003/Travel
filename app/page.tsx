@@ -7,6 +7,7 @@ import { cn } from "@/lib/utils";
 import { AppSidebar } from "@/components/appsidebar";
 import ChipInputBar from "@/components/chipinputbar";
 import { FlightsBlock, MultiStayBlock, ActivitiesCustomizer } from "@/components/tripblocks";
+import SocialImportFlow, { type SocialPrefs } from "@/components/socialimport";
 import {
   AirplaneTilt,
   Buildings,
@@ -4782,7 +4783,7 @@ function TravellersPill({ travellers }: { travellers: Traveller[] }) {
 /* ── Main chat area ─────────────────────────────────────── */
 function ChatArea({
   stage, msgs, isTyping, planStep, planUpdating, currentQ, qIdx, selected,
-  onStart, onPick, onAnswer, onSkip, onRandomTrip, chipCtx, onChipChange, onNewChat, selectedDay, onSelectDay, endRef,
+  onStart, onPick, onAnswer, onSkip, onRandomTrip, onSocialImport, chipCtx, onChipChange, onNewChat, selectedDay, onSelectDay, endRef,
   days, setDays, onSwapHighlight, onResultsMessage, onSwapApply, onCardApply, onSaveTrip, onLogChange,
   hasSaved, unsavedChanges, regenPending, onRegenerate,
   onOpenMobileSidebar, onOpenMobileMap,
@@ -4801,6 +4802,7 @@ function ChatArea({
   onAnswer: (v: string) => void;
   onSkip: () => void;
   onRandomTrip: () => void;
+  onSocialImport: () => void;
   chipCtx: ChipCtx | null;
   onChipChange: (updated: ChipCtx) => void;
   onNewChat: () => void;
@@ -4933,7 +4935,7 @@ function ChatArea({
             <div className="max-w-[760px] mx-auto px-4 sm:px-6 -mt-8 relative pb-2">
 
             {/* Featured trip starters */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-3">
               {/* Bali featured card */}
               <button
                 onClick={() => sendFree(
@@ -4960,7 +4962,7 @@ function ChatArea({
                     <span className="w-1.5 h-1.5 rounded-full bg-ct-orange animate-pulse" />
                     Trending · 1.2k travellers
                   </div>
-                  <p className="text-[18px] font-bold text-[#1a1a1a] leading-tight max-w-[200px]">
+                  <p className="text-[18px] font-semibold text-[#1a1a1a] leading-tight max-w-[200px]">
                     Plan my <br /> Bali trip
                   </p>
                   <p className="text-[11.5px] text-ct-text-secondary mt-1.5 max-w-[180px] leading-snug">
@@ -4986,7 +4988,7 @@ function ChatArea({
                     <Sparkle size={10} weight="fill" />
                     Feeling spontaneous?
                   </div>
-                  <p className="text-[18px] font-bold text-[#1a1a1a] leading-tight max-w-[210px]">
+                  <p className="text-[18px] font-semibold text-[#1a1a1a] leading-tight max-w-[210px]">
                     Plan a <br /> random trip
                   </p>
                   <p className="text-[11.5px] text-ct-text-secondary mt-1.5 max-w-[200px] leading-snug">
@@ -4999,6 +5001,65 @@ function ChatArea({
                 </div>
               </button>
             </div>
+
+            {/* Social-import starter — clean, blue accent, photo-led */}
+            <button
+              onClick={onSocialImport}
+              className="group relative w-full overflow-hidden rounded-2xl text-left mb-6 bg-white border border-ct-border-light hover:border-[#c5d5f7] transition-colors"
+            >
+              <div className="relative grid grid-cols-[1fr_auto] items-stretch min-h-[140px]">
+                {/* Left content */}
+                <div className="px-5 pt-4 pb-5 flex flex-col">
+                  <div
+                    className="inline-flex items-center gap-1.5 text-[10px] font-semibold tracking-[0.08em] uppercase mb-2.5 self-start px-2 py-0.5 rounded-full"
+                    style={{ background: "#eef2fb", color: "#2547a0" }}
+                  >
+                    <Sparkle size={9} weight="fill" />
+                    New
+                  </div>
+                  <p className="text-[18px] font-semibold text-ct-text leading-tight tracking-tight max-w-[280px]">
+                    Plan from your saved <br />
+                    <span style={{ color: "#2547a0" }}>Reels &amp; videos</span>
+                  </p>
+                  <p className="text-[11.5px] text-ct-text-secondary mt-1.5 max-w-[280px] leading-snug">
+                    Instagram, YouTube, TikTok.
+                  </p>
+                  <span
+                    className="mt-auto pt-3 inline-flex items-center gap-1 text-[12px] font-semibold text-ct-text"
+                  >
+                    Connect a feed
+                    <ArrowRight size={12} weight="bold" className="transition-transform group-hover:translate-x-0.5" />
+                  </span>
+                </div>
+
+                {/* Right collage — clean polaroid stack */}
+                <div className="relative w-[220px] sm:w-[260px] mr-2 self-stretch hidden sm:block">
+                  <div className="absolute top-6 left-1 w-[76px] h-[94px] bg-white rounded-md p-1 shadow-[0_3px_10px_rgba(15,25,55,0.08)] -rotate-[7deg] transition-transform duration-500 group-hover:-rotate-[9deg] group-hover:translate-y-[-2px] border border-ct-border-light">
+                    <div className="relative w-full h-full rounded-sm overflow-hidden bg-ct-surface-subtle">
+                      <Image src="/popular-bali.png" alt="" fill className="object-cover" sizes="80px" />
+                    </div>
+                  </div>
+                  <div className="absolute top-5 left-[90px] w-[76px] h-[94px] bg-white rounded-md p-1 shadow-[0_4px_14px_rgba(15,25,55,0.12)] rotate-[2deg] transition-transform duration-500 group-hover:rotate-[3deg] group-hover:translate-y-[-3px] border border-ct-border-light z-10">
+                    <div className="relative w-full h-full rounded-sm overflow-hidden bg-ct-surface-subtle">
+                      <Image src="/popular-japan.png" alt="" fill className="object-cover" sizes="80px" />
+                    </div>
+                  </div>
+                  <div className="absolute top-6 right-2 w-[76px] h-[94px] bg-white rounded-md p-1 shadow-[0_3px_10px_rgba(15,25,55,0.08)] rotate-[8deg] transition-transform duration-500 group-hover:rotate-[10deg] group-hover:translate-y-[-2px] border border-ct-border-light">
+                    <div className="relative w-full h-full rounded-sm overflow-hidden bg-ct-surface-subtle">
+                      <Image src="/popular-greece.png" alt="" fill className="object-cover" sizes="80px" />
+                    </div>
+                  </div>
+                  {/* Saved badge — solid blue */}
+                  {/* <div
+                    className="absolute bottom-2 right-4 inline-flex items-center gap-1 text-[9.5px] font-semibold uppercase tracking-[0.06em] text-white px-2 py-0.5 rounded-full"
+                    style={{ background: "#2547a0" }}
+                  >
+                    <svg width="8" height="8" viewBox="0 0 24 24" fill="currentColor"><path d="M6 2h12a1 1 0 0 1 1 1v19l-7-4-7 4V3a1 1 0 0 1 1-1z"/></svg>
+                    saved
+                  </div> */}
+                </div>
+              </div>
+            </button>
 
             {/* Quick starter chips */}
             <div className="relative rounded-2xl border border-ct-border-light bg-white overflow-hidden flex items-stretch min-h-[96px]">
@@ -5265,6 +5326,9 @@ export default function AIPlanner() {
   const [randomRound, setRandomRound] = useState(1);
   const [randomDestIntent, setRandomDestIntent] = useState("");
 
+  /* Social import flow state */
+  const [socialOpen, setSocialOpen] = useState(false);
+
   /* Build the active question set dynamically */
   function getActiveQS(): QDef[] {
     if (flowMode === "random") {
@@ -5309,6 +5373,60 @@ export default function AIPlanner() {
     addMsg({ kind: "user-init", text: "Plan a random trip — surprise me!" });
     setStage("q1");
     showAI("Let's build your perfect trip! A few quick questions to get started:", 900);
+  }
+
+  function handleSocialComplete(prefs: SocialPrefs) {
+    setSocialOpen(false);
+
+    const sourceLabel =
+      prefs.source === "instagram"
+        ? "Instagram"
+        : prefs.source === "youtube"
+        ? "YouTube"
+        : prefs.source === "tiktok"
+        ? "TikTok"
+        : "your saved links";
+
+    const ctx: ChipCtx = {
+      destination: prefs.primaryDestination,
+      dateMode: "exact",
+      dates: { start: "", end: "" },
+      quickPick: prefs.quickPick,
+      adults: 2,
+      children: 0,
+      cabinClass: "Economy",
+      budgetPreset: prefs.budgetPreset,
+      budgetRange: prefs.budgetRange,
+    };
+    setChipCtx(ctx);
+    setShowRightPanel(false);
+
+    addMsg({ kind: "user-init", text: prefs.initText });
+    setStage("q1");
+    addMsg({
+      kind: "system",
+      text: `Based on ${prefs.itemCount} saved items from ${sourceLabel} · ${prefs.handle}`,
+    });
+
+    setTimeout(() => {
+      showAI(
+        `Got it — pulling the vibe from your ${sourceLabel} saves. I picked up on ${prefs.destinations
+          .slice(0, 3)
+          .join(", ")} and a ${prefs.vibe.toLowerCase()} feel. Searching flights, stays and activities now…`,
+        700,
+      );
+    }, 250);
+
+    /* Kick off planning with the inferred prefs */
+    setTimeout(() => {
+      const allPairs: SummaryPair[] = [
+        { q: "Where to?", a: prefs.primaryDestination },
+        { q: "What's the vibe?", a: prefs.vibe },
+        { q: "Top interests", a: prefs.interests.slice(0, 3).join(", ") },
+      ];
+      setSummaryPairs(allPairs);
+      startPlanning(allPairs);
+    }, 1600);
   }
 
   function startConversation(init: string, chipState?: ChipCtx) {
@@ -5825,6 +5943,7 @@ export default function AIPlanner() {
     setFlowMode("bali");
     setRandomRound(1);
     setRandomDestIntent("");
+    setSocialOpen(false);
     if (planTimer.current) clearInterval(planTimer.current);
     if (updateTimer.current) clearTimeout(updateTimer.current);
     if (pulseTimer.current) clearTimeout(pulseTimer.current);
@@ -5876,6 +5995,7 @@ export default function AIPlanner() {
         onAnswer={handleAnswer}
         onSkip={() => handleAnswer("Skipped")}
         onRandomTrip={startRandomTrip}
+        onSocialImport={() => setSocialOpen(true)}
         chipCtx={chipCtx}
         onChipChange={handleChipChange}
         onNewChat={resetToIdle}
@@ -5935,6 +6055,11 @@ export default function AIPlanner() {
           <RightPanel />
         </div>
       ) : null}
+      <SocialImportFlow
+        open={socialOpen}
+        onClose={() => setSocialOpen(false)}
+        onComplete={handleSocialComplete}
+      />
     </div>
   );
 }
