@@ -11,6 +11,7 @@ import {
   Sparkle,
   Check,
   ArrowsLeftRight,
+  Trash,
   Plus,
   Minus,
   X,
@@ -75,7 +76,7 @@ function tagStyle(t?: FlightOpt["tag"]) {
 /* ── Selected (large) flight card ─────────────────────── */
 function SelectedFlightCard({ leg, opt }: { leg: "Outbound" | "Return"; opt: FlightOpt }) {
   return (
-    <div className="rounded-2xl border border-ct-border bg-ct-surface p-3.5 transition-all">
+    <div className="transition-all">
       <div className="flex items-center justify-between mb-3">
         <div className="flex items-center gap-2">
           <span className="w-7 h-7 rounded-full bg-ct-surface-subtle flex items-center justify-center">
@@ -83,7 +84,7 @@ function SelectedFlightCard({ leg, opt }: { leg: "Outbound" | "Return"; opt: Fli
           </span>
           <div>
             <p className="text-[10px] font-semibold tracking-[0.06em] uppercase text-ct-text-subtle">{leg}</p>
-            <p className="text-[12.5px] font-bold text-ct-text leading-tight">{opt.airline} · {opt.code}</p>
+            <p className="text-[12.5px] font-bold text-ct-orange leading-tight">{opt.airline} · {opt.code}</p>
           </div>
         </div>
         {opt.tag && (
@@ -216,7 +217,7 @@ function FlightLeg({
 
 export function FlightsBlock({ onSwap }: { onSwap?: (leg: "Outbound" | "Return", label: string) => void }) {
   return (
-    <div className="bg-ct-surface border border-ct-border rounded-2xl p-3.5 shadow-[var(--shadow-ct-sm)] space-y-4">
+    <div className="bg-ct-surface rounded-2xl p-3.5 space-y-4">
       <div className="flex items-center justify-between">
         <div>
           <p className="text-[12.5px] font-bold text-ct-text">Flights · Delhi ⇌ Bali</p>
@@ -527,10 +528,10 @@ function StayRow({
   const total = hotel.pricePerNight * n;
 
   return (
-    <div className="relative pl-6">
+    <div className="relative">
       {/* timeline dot + line */}
       <div className="absolute left-0 top-2 flex flex-col items-center">
-        <span className="w-3 h-3 rounded-full bg-ct-action ring-4 ring-ct-surface" />
+        {/* <span className="w-3 h-3 rounded-full bg-ct-action ring-4 ring-ct-surface" /> */}
         <span className="w-px flex-1 bg-ct-border-light mt-1" style={{ height: expanded ? "100%" : "200%" }} />
       </div>
 
@@ -538,7 +539,7 @@ function StayRow({
         <StayHeader b={block} />
 
         {/* hotel card */}
-        <div className="flex gap-3 p-2.5 rounded-xl border border-ct-border bg-ct-surface">
+        <div className="flex gap-3">
           <div className="relative w-[92px] h-[92px] rounded-lg overflow-hidden shrink-0 bg-ct-surface-deep">
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img src={hotel.img} alt={hotel.name} className="w-full h-full object-cover" />
@@ -713,7 +714,7 @@ export function MultiStayBlock({ onChange }: { onChange?: (summary: string) => v
   }
 
   return (
-    <div className="bg-ct-surface border border-ct-border rounded-2xl p-3.5 shadow-[var(--shadow-ct-sm)]">
+    <div className="bg-ct-surface rounded-2xl p-3.5">
       {/* Header */}
       <div className="flex items-start justify-between mb-3.5">
         <div>
@@ -751,7 +752,7 @@ export function MultiStayBlock({ onChange }: { onChange?: (summary: string) => v
       {/* Add stay */}
       <button
         onClick={addStay}
-        className="mt-3.5 ml-6 inline-flex items-center gap-1.5 text-[11.5px] font-semibold text-ct-text-secondary border border-dashed border-ct-border-medium hover:border-ct-action hover:text-ct-text bg-ct-surface px-3 py-1.5 rounded-full transition-colors"
+        className="mt-3.5 inline-flex items-center gap-1.5 text-[11.5px] font-semibold text-ct-text-secondary border border-dashed border-ct-border-medium hover:border-ct-action hover:text-ct-text bg-ct-surface px-3 py-1.5 rounded-full transition-colors"
       >
         <Plus size={11} weight="bold" />
         Add another stay
@@ -941,24 +942,21 @@ function ActAltCard({
 
 /* ── Selected activity row (always visible) ───────────── */
 function ActivityRow({
-  act, expanded, picked, justSwapped, onToggle,
+  act, expanded, justSwapped, onToggle, onRemove,
 }: {
   act: ActivityLike;
   expanded: boolean;
-  picked: boolean;
   justSwapped: boolean;
   onToggle: () => void;
+  onRemove: () => void;
 }) {
   return (
-    <button
-      onClick={onToggle}
+    <div
       className={cn(
-        "w-full flex items-center gap-3 p-2 rounded-xl border bg-ct-surface text-left transition-all",
+        "w-full flex items-center gap-3 p-2 rounded-xl border transition-all",
         expanded
-          ? "border-ct-border-strong shadow-[var(--shadow-ct-sm)]"
-          : picked
-            ? "border-ct-border-medium"
-            : "border-ct-border hover:border-ct-border-medium",
+          ? "border-ct-border-strong bg-ct-surface shadow-[var(--shadow-ct-sm)]"
+          : "border-transparent bg-transparent hover:bg-ct-surface-subtle",
       )}
     >
       <div className="relative w-12 h-12 rounded-lg bg-ct-surface-deep overflow-hidden shrink-0">
@@ -975,7 +973,7 @@ function ActivityRow({
         </span>
       </div>
 
-      <div className="min-w-0 flex-1">
+      <button onClick={onToggle} className="min-w-0 flex-1 text-left">
         <p className="text-[12.5px] font-bold text-ct-text leading-tight truncate">{act.name}</p>
         <p className="text-[10.5px] text-ct-text-muted mt-0.5 flex items-center gap-1.5">
           <Clock size={9} weight="bold" />
@@ -986,18 +984,31 @@ function ActivityRow({
             </span>
           )}
         </p>
-      </div>
+      </button>
 
-      <span className={cn(
-        "shrink-0 inline-flex items-center gap-1 text-[10.5px] font-semibold px-2 py-1 rounded-full border transition-colors",
-        expanded
-          ? "border-ct-border-strong bg-ct-action text-white"
-          : "border-ct-border text-ct-text-secondary group-hover:border-ct-border-medium",
-      )}>
-        <ArrowsLeftRight size={10} weight="bold" />
-        {expanded ? "Close" : "Swap"}
-      </span>
-    </button>
+      <div className="shrink-0 flex items-center gap-1.5">
+      <button
+          onClick={onToggle}
+          className={cn(
+            "inline-flex items-center gap-1 text-[10.5px] font-semibold px-2 py-1 rounded-full border transition-colors",
+            expanded
+              ? "border-ct-border-strong bg-ct-action text-white"
+              : "border-ct-border text-ct-text-secondary hover:border-ct-border-medium",
+          )}
+        >
+          <ArrowsLeftRight size={10} weight="bold" />
+          {expanded ? "Close" : "Swap"}
+        </button>
+        <button
+          onClick={onRemove}
+          title="Remove activity"
+          className="inline-flex items-center justify-center w-[28px] h-[28px] rounded-full border border-ct-border text-ct-text-muted transition-colors hover:border-[#fca5a5] hover:bg-[#fee2e2] hover:text-[#dc2626]"
+        >
+          <Trash size={11} weight="bold" />
+        </button>
+        
+      </div>
+    </div>
   );
 }
 
@@ -1025,9 +1036,9 @@ function ActSwapPanel({
         <p className="text-[10.5px] font-semibold tracking-[0.06em] uppercase text-ct-text-subtle">
           Pick a replacement
         </p>
-        <p className="text-[10.5px] text-ct-text-muted">
+        {/* <p className="text-[10.5px] text-ct-text-muted">
           Currently <span className="font-semibold text-ct-text-secondary">{currentName}</span>
-        </p>
+        </p> */}
       </div>
 
       <div
@@ -1051,7 +1062,7 @@ function ActSwapPanel({
       </div>
 
       <div
-        className="flex gap-2 overflow-x-auto px-3 pb-3 snap-x snap-mandatory"
+        className="flex gap-2 overflow-x-auto px-3 pb-3 snap-x snap-mandatory ml-3"
         style={{ scrollbarWidth: "none" }}
       >
         {filtered.length === 0 && (
@@ -1105,6 +1116,7 @@ export function ActivitiesCustomizer({
   day,
   onSwap,
   onAdd,
+  onRemove,
   onClose,
 }: {
   day: {
@@ -1115,6 +1127,7 @@ export function ActivitiesCustomizer({
   };
   onSwap: (dayIdx: number, slotIdx: number, newActivity: string) => void;
   onAdd?: (dayIdx: number, activity: ActivityLike) => void;
+  onRemove?: (dayIdx: number, slotIdx: number) => void;
   onClose: () => void;
 }) {
   const [expandedSlot, setExpandedSlot] = useState<number | null>(null);
@@ -1148,9 +1161,9 @@ export function ActivitiesCustomizer({
   const availablePresets = ADD_PRESETS.filter(p => !existingNames.has(p.name));
 
   return (
-    <div className="rounded-2xl border border-ct-border bg-ct-surface overflow-hidden">
+    <div className="rounded-2xl bg-ct-surface overflow-hidden">
       {/* Header */}
-      <div className="flex items-center justify-between px-4 py-3 border-b border-ct-border-light bg-ct-surface-raised">
+      <div className="flex items-center justify-between px-4 py-3 border-b border-ct-border-light">
         <div>
           <p className="text-[10.5px] font-semibold tracking-[0.06em] uppercase text-ct-text-subtle">
             Customise · Day {day.day}
@@ -1183,9 +1196,9 @@ export function ActivitiesCustomizer({
             <ActivityRow
               act={act}
               expanded={expandedSlot === i}
-              picked={recentlySwapped === i}
               justSwapped={recentlySwapped === i}
               onToggle={() => setExpandedSlot(prev => prev === i ? null : i)}
+              onRemove={() => { onRemove?.(day.day - 1, i); setExpandedSlot(null); }}
             />
             {expandedSlot === i && (
               <ActSwapPanel
@@ -1243,7 +1256,7 @@ export function ActivitiesCustomizer({
       )}
 
       {/* Footer actions */}
-      <div className="flex items-center gap-2 px-4 py-3 border-t border-ct-border-light bg-ct-surface-raised">
+      <div className="flex items-center gap-2 px-4 py-3 border-t border-ct-border-light ">
         <button
           onClick={() => setAdding(v => !v)}
           aria-expanded={adding}
