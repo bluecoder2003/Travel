@@ -7,6 +7,7 @@ import { cn } from "@/lib/utils";
 import { AppSidebar } from "@/components/appsidebar";
 import ChipInputBar from "@/components/chipinputbar";
 import { FlightsBlock, MultiStayBlock, ActivitiesCustomizer } from "@/components/tripblocks";
+import SocialImportFlow, { type SocialPrefs } from "@/components/socialimport";
 import {
   AirplaneTilt,
   Buildings,
@@ -77,12 +78,21 @@ interface Version {
 interface ChipDiff { label: string; from: string; to: string }
 interface Msg {
   id: string;
-  kind: "user-init" | "ai" | "summary" | "planning" | "planning-done" | "breakdown" | "swap" | "cards" | "save-trip" | "flights" | "multi-stay" | "trip-bundle" | "version-saved" | "regen-preview";
+  kind: "user-init" | "ai" | "summary" | "planning" | "planning-done" | "breakdown" | "swap" | "cards" | "save-trip" | "flights" | "multi-stay" | "trip-bundle" | "version-saved" | "regen-preview" | "system" | "regen-prompt";
   text?: string;
   pairs?: SummaryPair[];
   swapKind?: SwapKind;
   cardSet?: CardSet;
   chipDiffs?: ChipDiff[];
+}
+interface Traveller { id: string; name: string; initial: string; prefs: string[] }
+const TRAVELLER_N: Traveller = { id: "n", name: "You", initial: "N", prefs: ["Adventure", "Cultural"] };
+const TRAVELLER_A: Traveller = { id: "a", name: "Alex", initial: "A", prefs: ["Relaxed", "Scenic"] };
+type CollabLabel = "everyone" | "adventure" | "relaxed";
+function getCollabLabel(type: ActivityType): CollabLabel {
+  if (type === "hotel" || type === "spa" || type === "sunset") return "relaxed";
+  if (type === "trek" || type === "walk" || type === "nature" || type === "beach") return "adventure";
+  return "everyone";
 }
 interface ChipCtx {
   destination: string;
@@ -1478,8 +1488,22 @@ function ConflictResolver() {
 }
 
 /* ── Plan result view ────────────────────────────────────── */
+function CollabLabelPill({ label }: { label: CollabLabel }) {
+  const cfg: Record<CollabLabel, { text: string; cls: string }> = {
+    everyone: { text: "For everyone", cls: "bg-ct-surface-subtle text-ct-text-secondary border-ct-border-light" },
+    adventure: { text: "Adventure-focused (N)", cls: "bg-ct-action/10 text-ct-action border-ct-border" },
+    relaxed: { text: "Relaxed (A)", cls: "bg-ct-orange-light text-ct-orange border-ct-orange-border" },
+  };
+  const c = cfg[label];
+  return (
+    <span className={cn("inline-block text-[9.5px] font-semibold border px-1.5 py-0.5 rounded-full leading-none mt-1", c.cls)}>
+      {c.text}
+    </span>
+  );
+}
+
 function PlanResultView({
-  onSelectDay, selectedDay, planUpdating, days, setDays, onSwapHighlight, onLogChange, destination,
+  onSelectDay, selectedDay, planUpdating, days, setDays, onSwapHighlight, onLogChange, destination, collabActive,
 }: {
   onSelectDay: (day: number) => void;
   selectedDay: number;
@@ -1489,6 +1513,7 @@ function PlanResultView({
   onSwapHighlight: (day: number, activityName?: string) => void;
   onLogChange: (label: string, change: string) => void;
   destination?: string;
+  collabActive?: boolean;
 }) {
   const [customizingDayId, setCustomizingDayId] = useState<number | null>(null);
   const [swapSegment, setSwapSegment] = useState<SegmentId | null>(null);
@@ -1703,13 +1728,14 @@ function PlanResultView({
                 {activeDay.activities.map((act, i) => {
                   const dayIdx = days.findIndex(d => d.day === activeDay.day);
                   return (
-                    <div key={i} className="flex items-center gap-3">
+                    <div key={i} className="flex items-start gap-3">
                       <div className="w-8 h-8 rounded-xl bg-[#f5f5f5] flex items-center justify-center shrink-0">
                         <ActivityIcon type={act.type} size={15} />
                       </div>
                       <div className="min-w-0 flex-1">
                         <p className="text-[13px] font-semibold text-[#1a1a1a] leading-tight">{act.name}</p>
                         <p className="text-[10.5px] text-ct-text-subtle mt-0.5">{act.time}</p>
+                        {collabActive && <CollabLabelPill label={getCollabLabel(act.type)} />}
                       </div>
                     </div>
                   );
@@ -4689,13 +4715,79 @@ function MapPanel({
   );
 }
 
+/* ── Travellers pill (collab mode) ──────────────────────── */
+function TravellersPill({ travellers }: { travellers: Traveller[] }) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    function handler(e: MouseEvent) {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    }
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, []);
+  return (
+    <div ref={ref} className="relative">
+      <button
+        onClick={() => setOpen(o => !o)}
+        className="hidden sm:inline-flex items-center gap-2 text-[12px] font-semibold text-ct-text-secondary border border-ct-border pl-1 pr-3 py-1 rounded-full hover:bg-ct-surface-subtle transition-colors"
+      >
+        <span className="flex -space-x-1.5">
+          {travellers.map((t, i) => (
+            <span
+              key={t.id}
+              className={cn(
+                "w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold border-2 border-white",
+                i === 0 ? "bg-ct-action text-white" : "bg-ct-orange text-white",
+              )}
+            >
+              {t.initial}
+            </span>
+          ))}
+        </span>
+        <span>{travellers.length} travellers</span>
+      </button>
+      {open && (
+        <div className="absolute right-0 top-full mt-2 w-64 bg-white border border-ct-border rounded-2xl shadow-lg overflow-hidden z-50">
+          <div className="px-4 py-2.5 border-b border-ct-border-light">
+            <p className="text-[10.5px] font-semibold uppercase tracking-wider text-ct-text-subtle">Travellers & preferences</p>
+          </div>
+          <div className="px-4 py-3 space-y-3">
+            {travellers.map((t, i) => (
+              <div key={t.id} className="flex items-start gap-2.5">
+                <span className={cn(
+                  "w-7 h-7 rounded-full flex items-center justify-center text-[11px] font-bold shrink-0",
+                  i === 0 ? "bg-ct-action text-white" : "bg-ct-orange text-white",
+                )}>
+                  {t.initial}
+                </span>
+                <div className="min-w-0 flex-1">
+                  <p className="text-[12.5px] font-semibold text-[#1a1a1a]">{t.name}</p>
+                  <div className="flex flex-wrap gap-1 mt-1">
+                    {t.prefs.map(p => (
+                      <span key={p} className="text-[10.5px] font-medium bg-ct-surface-subtle text-ct-text-secondary border border-ct-border-light px-2 py-0.5 rounded-full">
+                        {p}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 /* ── Main chat area ─────────────────────────────────────── */
 function ChatArea({
   stage, msgs, isTyping, planStep, planUpdating, currentQ, qIdx, selected,
-  onStart, onPick, onAnswer, onSkip, onRandomTrip, chipCtx, onChipChange, onNewChat, selectedDay, onSelectDay, endRef,
+  onStart, onPick, onAnswer, onSkip, onRandomTrip, onSocialImport, chipCtx, onChipChange, onNewChat, selectedDay, onSelectDay, endRef,
   days, setDays, onSwapHighlight, onResultsMessage, onSwapApply, onCardApply, onSaveTrip, onLogChange,
   hasSaved, unsavedChanges, regenPending, onRegenerate,
   onOpenMobileSidebar, onOpenMobileMap,
+  travellers, onInvite, prefsRegenPending, onRegenForPrefs, collabActive,
 }: {
   stage: Stage;
   msgs: Msg[];
@@ -4710,6 +4802,7 @@ function ChatArea({
   onAnswer: (v: string) => void;
   onSkip: () => void;
   onRandomTrip: () => void;
+  onSocialImport: () => void;
   chipCtx: ChipCtx | null;
   onChipChange: (updated: ChipCtx) => void;
   onNewChat: () => void;
@@ -4730,6 +4823,11 @@ function ChatArea({
   onRegenerate: () => void;
   onOpenMobileSidebar?: () => void;
   onOpenMobileMap?: () => void;
+  travellers: Traveller[];
+  onInvite: () => void;
+  prefsRegenPending: boolean;
+  onRegenForPrefs: () => void;
+  collabActive: boolean;
 }) {
   const showCard = (stage === "q1" || stage === "q2" || stage === "q3") && currentQ !== null;
 
@@ -4763,9 +4861,17 @@ function ChatArea({
               <MapPin size={15} />
             </button>
           )}
-          <button className="hidden sm:inline-flex text-[12px] font-semibold text-ct-text-secondary border border-ct-border px-3.5 py-1.5 rounded-full hover:bg-ct-surface-subtle transition-colors">
-            Invite
-          </button>
+          {stage !== "idle" && travellers.length >= 2 && (
+            <TravellersPill travellers={travellers} />
+          )}
+          {stage !== "idle" && travellers.length < 2 && (
+            <button
+              onClick={onInvite}
+              className="hidden sm:inline-flex text-[12px] font-semibold text-ct-text-secondary border border-ct-border px-3.5 py-1.5 rounded-full hover:bg-ct-surface-subtle transition-colors"
+            >
+              Invite
+            </button>
+          )}
           <button className="hidden md:flex items-center gap-1.5 text-[12px] font-semibold text-ct-text-secondary border border-ct-border px-3.5 py-1.5 rounded-full hover:bg-ct-surface-subtle transition-colors">
             <Globe size={13} className="text-ct-action-icon" />
             English
@@ -4829,7 +4935,7 @@ function ChatArea({
             <div className="max-w-[760px] mx-auto px-4 sm:px-6 -mt-8 relative pb-2">
 
             {/* Featured trip starters */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-3">
               {/* Bali featured card */}
               <button
                 onClick={() => sendFree(
@@ -4856,7 +4962,7 @@ function ChatArea({
                     <span className="w-1.5 h-1.5 rounded-full bg-ct-orange animate-pulse" />
                     Trending · 1.2k travellers
                   </div>
-                  <p className="text-[18px] font-bold text-[#1a1a1a] leading-tight max-w-[200px]">
+                  <p className="text-[18px] font-semibold text-[#1a1a1a] leading-tight max-w-[200px]">
                     Plan my <br /> Bali trip
                   </p>
                   <p className="text-[11.5px] text-ct-text-secondary mt-1.5 max-w-[180px] leading-snug">
@@ -4882,7 +4988,7 @@ function ChatArea({
                     <Sparkle size={10} weight="fill" />
                     Feeling spontaneous?
                   </div>
-                  <p className="text-[18px] font-bold text-[#1a1a1a] leading-tight max-w-[210px]">
+                  <p className="text-[18px] font-semibold text-[#1a1a1a] leading-tight max-w-[210px]">
                     Plan a <br /> random trip
                   </p>
                   <p className="text-[11.5px] text-ct-text-secondary mt-1.5 max-w-[200px] leading-snug">
@@ -4895,6 +5001,65 @@ function ChatArea({
                 </div>
               </button>
             </div>
+
+            {/* Social-import starter — clean, blue accent, photo-led */}
+            <button
+              onClick={onSocialImport}
+              className="group relative w-full overflow-hidden rounded-2xl text-left mb-6 bg-white border border-ct-border-light hover:border-[#c5d5f7] transition-colors"
+            >
+              <div className="relative grid grid-cols-[1fr_auto] items-stretch min-h-[140px]">
+                {/* Left content */}
+                <div className="px-5 pt-4 pb-5 flex flex-col">
+                  <div
+                    className="inline-flex items-center gap-1.5 text-[10px] font-semibold tracking-[0.08em] uppercase mb-2.5 self-start px-2 py-0.5 rounded-full"
+                    style={{ background: "#eef2fb", color: "#2547a0" }}
+                  >
+                    <Sparkle size={9} weight="fill" />
+                    New
+                  </div>
+                  <p className="text-[18px] font-semibold text-ct-text leading-tight tracking-tight max-w-[280px]">
+                    Plan from your saved <br />
+                    <span style={{ color: "#2547a0" }}>Reels &amp; videos</span>
+                  </p>
+                  <p className="text-[11.5px] text-ct-text-secondary mt-1.5 max-w-[280px] leading-snug">
+                    Instagram, YouTube, TikTok.
+                  </p>
+                  <span
+                    className="mt-auto pt-3 inline-flex items-center gap-1 text-[12px] font-semibold text-ct-text"
+                  >
+                    Connect a feed
+                    <ArrowRight size={12} weight="bold" className="transition-transform group-hover:translate-x-0.5" />
+                  </span>
+                </div>
+
+                {/* Right collage — clean polaroid stack */}
+                <div className="relative w-[220px] sm:w-[260px] mr-2 self-stretch hidden sm:block">
+                  <div className="absolute top-6 left-1 w-[76px] h-[94px] bg-white rounded-md p-1 shadow-[0_3px_10px_rgba(15,25,55,0.08)] -rotate-[7deg] transition-transform duration-500 group-hover:-rotate-[9deg] group-hover:translate-y-[-2px] border border-ct-border-light">
+                    <div className="relative w-full h-full rounded-sm overflow-hidden bg-ct-surface-subtle">
+                      <Image src="/popular-bali.png" alt="" fill className="object-cover" sizes="80px" />
+                    </div>
+                  </div>
+                  <div className="absolute top-5 left-[90px] w-[76px] h-[94px] bg-white rounded-md p-1 shadow-[0_4px_14px_rgba(15,25,55,0.12)] rotate-[2deg] transition-transform duration-500 group-hover:rotate-[3deg] group-hover:translate-y-[-3px] border border-ct-border-light z-10">
+                    <div className="relative w-full h-full rounded-sm overflow-hidden bg-ct-surface-subtle">
+                      <Image src="/popular-japan.png" alt="" fill className="object-cover" sizes="80px" />
+                    </div>
+                  </div>
+                  <div className="absolute top-6 right-2 w-[76px] h-[94px] bg-white rounded-md p-1 shadow-[0_3px_10px_rgba(15,25,55,0.08)] rotate-[8deg] transition-transform duration-500 group-hover:rotate-[10deg] group-hover:translate-y-[-2px] border border-ct-border-light">
+                    <div className="relative w-full h-full rounded-sm overflow-hidden bg-ct-surface-subtle">
+                      <Image src="/popular-greece.png" alt="" fill className="object-cover" sizes="80px" />
+                    </div>
+                  </div>
+                  {/* Saved badge — solid blue */}
+                  {/* <div
+                    className="absolute bottom-2 right-4 inline-flex items-center gap-1 text-[9.5px] font-semibold uppercase tracking-[0.06em] text-white px-2 py-0.5 rounded-full"
+                    style={{ background: "#2547a0" }}
+                  >
+                    <svg width="8" height="8" viewBox="0 0 24 24" fill="currentColor"><path d="M6 2h12a1 1 0 0 1 1 1v19l-7-4-7 4V3a1 1 0 0 1 1-1z"/></svg>
+                    saved
+                  </div> */}
+                </div>
+              </div>
+            </button>
 
             {/* Quick starter chips */}
             <div className="relative rounded-2xl border border-ct-border-light bg-white overflow-hidden flex items-stretch min-h-[96px]">
@@ -4962,6 +5127,29 @@ function ChatArea({
                 </div>
               );
               if (msg.kind === "summary") return <SummaryBubble key={msg.id} pairs={msg.pairs!} />;
+              if (msg.kind === "system") return (
+                <div key={msg.id} className="flex justify-center">
+                  <div className="text-[11.5px] text-ct-text-muted bg-ct-surface-subtle border border-ct-border-light rounded-full px-3 py-1.5 max-w-[85%] text-center leading-snug">
+                    {msg.text}
+                  </div>
+                </div>
+              );
+              if (msg.kind === "regen-prompt") return (
+                <div key={msg.id} className="flex gap-2.5">
+                  <SparkSlot show={isFirstInTurn} />
+                  <div className="flex-1 min-w-0 flex items-center justify-between gap-3 bg-white border border-ct-border rounded-xl px-4 py-3">
+                    <p className="text-[13px] text-[#1a1a1a] leading-snug">{msg.text || "Preferences updated — regenerate plan?"}</p>
+                    <button
+                      onClick={onRegenForPrefs}
+                      disabled={!prefsRegenPending}
+                      className="shrink-0 flex items-center gap-1.5 text-[12px] font-semibold text-white bg-ct-action hover:bg-ct-action-hover px-3.5 py-1.5 rounded-full transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                    >
+                      <ArrowsClockwise size={12} weight="bold" />
+                      Regenerate plan
+                    </button>
+                  </div>
+                </div>
+              );
               if (msg.kind === "planning") return (
                 <div key={msg.id} className="flex gap-2.5">
                   <SparkSlot show={isFirstInTurn} />
@@ -4981,6 +5169,7 @@ function ChatArea({
                     onSwapHighlight={onSwapHighlight}
                     onLogChange={onLogChange}
                     destination={chipCtx?.destination ?? ""}
+                    collabActive={collabActive}
                   />
                 </div>
               );
@@ -5137,6 +5326,9 @@ export default function AIPlanner() {
   const [randomRound, setRandomRound] = useState(1);
   const [randomDestIntent, setRandomDestIntent] = useState("");
 
+  /* Social import flow state */
+  const [socialOpen, setSocialOpen] = useState(false);
+
   /* Build the active question set dynamically */
   function getActiveQS(): QDef[] {
     if (flowMode === "random") {
@@ -5181,6 +5373,60 @@ export default function AIPlanner() {
     addMsg({ kind: "user-init", text: "Plan a random trip — surprise me!" });
     setStage("q1");
     showAI("Let's build your perfect trip! A few quick questions to get started:", 900);
+  }
+
+  function handleSocialComplete(prefs: SocialPrefs) {
+    setSocialOpen(false);
+
+    const sourceLabel =
+      prefs.source === "instagram"
+        ? "Instagram"
+        : prefs.source === "youtube"
+        ? "YouTube"
+        : prefs.source === "tiktok"
+        ? "TikTok"
+        : "your saved links";
+
+    const ctx: ChipCtx = {
+      destination: prefs.primaryDestination,
+      dateMode: "exact",
+      dates: { start: "", end: "" },
+      quickPick: prefs.quickPick,
+      adults: 2,
+      children: 0,
+      cabinClass: "Economy",
+      budgetPreset: prefs.budgetPreset,
+      budgetRange: prefs.budgetRange,
+    };
+    setChipCtx(ctx);
+    setShowRightPanel(false);
+
+    addMsg({ kind: "user-init", text: prefs.initText });
+    setStage("q1");
+    addMsg({
+      kind: "system",
+      text: `Based on ${prefs.itemCount} saved items from ${sourceLabel} · ${prefs.handle}`,
+    });
+
+    setTimeout(() => {
+      showAI(
+        `Got it — pulling the vibe from your ${sourceLabel} saves. I picked up on ${prefs.destinations
+          .slice(0, 3)
+          .join(", ")} and a ${prefs.vibe.toLowerCase()} feel. Searching flights, stays and activities now…`,
+        700,
+      );
+    }, 250);
+
+    /* Kick off planning with the inferred prefs */
+    setTimeout(() => {
+      const allPairs: SummaryPair[] = [
+        { q: "Where to?", a: prefs.primaryDestination },
+        { q: "What's the vibe?", a: prefs.vibe },
+        { q: "Top interests", a: prefs.interests.slice(0, 3).join(", ") },
+      ];
+      setSummaryPairs(allPairs);
+      startPlanning(allPairs);
+    }, 1600);
   }
 
   function startConversation(init: string, chipState?: ChipCtx) {
@@ -5345,6 +5591,30 @@ export default function AIPlanner() {
     changes: [],
   });
   const [regenPending, setRegenPending] = useState(false);
+
+  /* ── Collaborative planning state ── */
+  const [travellers, setTravellers] = useState<Traveller[]>([TRAVELLER_N]);
+  const [collabActive, setCollabActive] = useState(false);
+  const [prefsRegenPending, setPrefsRegenPending] = useState(false);
+
+  function handleInviteAlex() {
+    if (travellers.length >= 2) return;
+    setTravellers([TRAVELLER_N, TRAVELLER_A]);
+    addMsg({ kind: "system", text: "Alex joined the trip and added preferences: Relaxed, Scenic" });
+    setPrefsRegenPending(true);
+    setTimeout(() => addMsg({ kind: "regen-prompt", text: "Preferences updated — regenerate plan?" }), 350);
+  }
+
+  function handleRegenForPrefs() {
+    if (!prefsRegenPending) return;
+    setPrefsRegenPending(false);
+    setCollabActive(true);
+    addMsg({ kind: "system", text: "Plan regenerated — activities now labelled by traveller preference." });
+    setPlanUpdating(true);
+    if (updateTimer.current) clearTimeout(updateTimer.current);
+    updateTimer.current = setTimeout(() => setPlanUpdating(false), 1200);
+    triggerHighlight(selectedDay);
+  }
 
   /* Accumulate changes between saves; latest label wins. */
   function logChange(label: string, change: string) {
@@ -5667,9 +5937,13 @@ export default function AIPlanner() {
     setCurrentVersionId(null);
     setPendingChange({ label: "Initial plan", changes: [] });
     setRegenPending(false);
+    setTravellers([TRAVELLER_N]);
+    setCollabActive(false);
+    setPrefsRegenPending(false);
     setFlowMode("bali");
     setRandomRound(1);
     setRandomDestIntent("");
+    setSocialOpen(false);
     if (planTimer.current) clearInterval(planTimer.current);
     if (updateTimer.current) clearTimeout(updateTimer.current);
     if (pulseTimer.current) clearTimeout(pulseTimer.current);
@@ -5721,6 +5995,7 @@ export default function AIPlanner() {
         onAnswer={handleAnswer}
         onSkip={() => handleAnswer("Skipped")}
         onRandomTrip={startRandomTrip}
+        onSocialImport={() => setSocialOpen(true)}
         chipCtx={chipCtx}
         onChipChange={handleChipChange}
         onNewChat={resetToIdle}
@@ -5741,6 +6016,11 @@ export default function AIPlanner() {
         onRegenerate={handleRegenerate}
         onOpenMobileSidebar={() => setMobileSidebarOpen(true)}
         onOpenMobileMap={() => setMobileMapOpen(true)}
+        travellers={travellers}
+        onInvite={handleInviteAlex}
+        prefsRegenPending={prefsRegenPending}
+        onRegenForPrefs={handleRegenForPrefs}
+        collabActive={collabActive}
       />
       {stage === "results" ? (
         <>
@@ -5775,6 +6055,11 @@ export default function AIPlanner() {
           <RightPanel />
         </div>
       ) : null}
+      <SocialImportFlow
+        open={socialOpen}
+        onClose={() => setSocialOpen(false)}
+        onComplete={handleSocialComplete}
+      />
     </div>
   );
 }
